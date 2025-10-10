@@ -56,7 +56,7 @@ This project implements an elevator dispatch system using reinforcement learning
 1. Ensure you have Python 3.7+ installed.
 2. Install the required libraries:
    ```
-   pip install gymnasium stable-baselines3 numpy matplotlib tkinter
+   pip install gymnasium stable-baselines3 numpy matplotlib
    ```
 3. Run the simulation:
 
@@ -67,7 +67,7 @@ This project implements an elevator dispatch system using reinforcement learning
 
    - To evaluate the trained agent:
      ```
-     python main.py --evaluate --episodes 20 --floors 5 --elevators 1
+     python main.py --evaluate <model path> --episodes 20 --floors 5 --elevators 1
      ```
 
    - To run the GUI simulation:
@@ -122,38 +122,66 @@ The current implementation provides a production-ready elevator dispatch system 
    - [ ] Add lunchtime traffic patterns (12-1 PM)
    - [ ] Implement special event generators
    - [ ] Add passenger groups traveling together
+   - [ ] Enhanced state representation with temporal/spatial features
+   - [ ] Predictive passenger flow modeling
 
 2. **Reward Function Extensions**:
    - [ ] Incorporate energy consumption metrics
    - [ ] Add differential rewards for express vs local elevators
    - [ ] Implement priority scheduling (emergency/disabled)
+   - [ ] Multi-objective reward balancing (efficiency, comfort, energy, fairness)
+   - [ ] Adaptive reward weights based on operational conditions
 
 3. **Algorithm Expansion**:
    - [ ] Add SAC implementation comparison
    - [ ] Develop hybrid rule-based/RL approach
    - [ ] Create benchmark suite for algorithm comparison
+   - [ ] Multi-algorithm framework (PPO, A2C, DDPG, SAC, TD3)
+   - [ ] Hyperparameter optimization with Optuna
 
 ### Mid-Term Goals (v1.5)
 4. **GUI Enhancements**:
    - [ ] Real-time 3D visualization option
    - [ ] Interactive scenario builder
    - [ ] Playback controls for simulation review
+   - [ ] Enhanced real-time statistics and analytics
+   - [ ] Comparative algorithm performance dashboard
 
 5. **Performance Optimization**:
    - [ ] Vectorized environment for faster training
    - [ ] Cython acceleration for core simulation
    - [ ] Distributed training support
+   - [ ] Realistic physics engine with kinematic movement
+   - [ ] Large-scale simulation support (50+ floors)
 
-### Long-Term Vision (v2.0+)
-6. **Advanced Features**:
+### ROS2 Integration (v2.0)
+6. **Distributed Architecture**:
+   - [ ] ROS2 node structure with custom message definitions
+   - [ ] Distributed components (building manager, elevator controllers, RL agent)
+   - [ ] Real-time communication between simulation components
+   - [ ] Hardware-in-the-loop testing capability
+   - [ ] ROS2-based visualization and monitoring
+
+### Long-Term Vision (v3.0)
+7. **Advanced Features**:
    - [ ] Predictive maintenance integration
    - [ ] Dynamic floor importance weighting
    - [ ] Multi-building coordination
+   - [ ] Transfer learning between building configurations
+   - [ ] Continuous learning from operational data
 
-7. **Deployment Ready**:
+8. **Deployment Ready**:
    - [ ] Docker containerization
    - [ ] REST API interface
    - [ ] Cloud training pipeline
+   - [ ] ROS2 deployment for real-world testing
+   - [ ] Real-world data integration and adaptation
+
+### Research & Development Focus
+- **State Representation Optimization**: Finding most efficient observation space
+- **Algorithm Performance**: Comparative analysis in elevator control domain  
+- **Real-world Transfer**: Bridging simulation-to-reality gap through ROS2
+- **Scalability Studies**: Performance with ultra-tall buildings (50+ floors)
 
 ## How to Contribute
 
