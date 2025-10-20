@@ -36,8 +36,13 @@ class ElevatorGUI:
         # Speed control
         ttk.Label(control_frame, text="Sim Speed:").pack(side="left", padx=5)
         self.speed_var = tk.DoubleVar(value=1.0)
-        ttk.Scale(control_frame, from_=0.1, to=5.0, variable=self.speed_var, 
-                 orient="horizontal", length=100).pack(side="left", padx=5)
+        speed_scale = ttk.Scale(control_frame, from_=0.1, to=10.0, variable=self.speed_var, 
+                               orient="horizontal", length=150, command=self.on_speed_change)
+        speed_scale.pack(side="left", padx=5)
+        
+        # Speed value display
+        self.speed_label = ttk.Label(control_frame, text="1.0x")
+        self.speed_label.pack(side="left", padx=5)
         
         # Stats
         self.stats_label = ttk.Label(control_frame, text="Time: 00:00:00 | Waiting: 0")
@@ -67,7 +72,7 @@ class ElevatorGUI:
         
         ttk.Label(right_frame, text="Elevator Internal Panels", font=("Arial", 12, "bold")).pack(pady=5)
         self.setup_elevator_panels(right_frame)
-        
+
     def setup_external_controls(self, parent):
         """Setup external call buttons for EACH elevator on each floor"""
         # External call buttons frame
@@ -158,7 +163,13 @@ class ElevatorGUI:
                                command=lambda e=elevator_id, f=floor: self.press_elevator_button(e, f))
                 btn.grid(row=row, column=col, padx=2, pady=2)
                 self.elevator_buttons[elevator_id][floor] = btn
-    
+       
+    def on_speed_change(self, event=None):
+        """Handle speed slider changes"""
+        speed_value = self.speed_var.get()
+        self.speed_label.config(text=f"{speed_value:.1f}x")
+        self.building.set_speed_multiplier(speed_value)
+     
     def call_elevator(self, floor: int, elevator_id: int, direction: str):
         """Handle external call button press for SPECIFIC elevator"""
         success = self.building.call_elevator(floor, elevator_id, direction)
@@ -206,7 +217,7 @@ class ElevatorGUI:
     
     def reset_simulation(self):
         self.pause_simulation()
-        self.building = Building(self.num_floors, self.num_elevators)
+        self.building = Building(self.num_floors, self.num_elevators, self.speed_var.get())
         # Reset button colors
         for elevator_id in self.elevator_buttons:
             for floor, btn in self.elevator_buttons[elevator_id].items():
@@ -217,7 +228,7 @@ class ElevatorGUI:
         while self.is_running:
             self.building.step()
             self.root.after(0, self.update_display)
-            time.sleep(0.016 / self.speed_var.get())
+            time.sleep(0.016)
             
     def draw_passengers(self):
         """Draw passenger indicators on floors and in elevators"""
@@ -433,18 +444,28 @@ class ElevatorGUI:
                 canvas.create_text(indicator_x, indicator_y, text="↓", font=("Arial", 8), fill="white")
     
     def update_elevator_buttons(self):
-        """Update the appearance of elevator internal buttons based on current state"""
+        """Update the appearance and state of elevator internal buttons"""
         state = self.building.get_state()
         
         for elevator_id, elevator_state in enumerate(state['elevators']):
             internal_buttons = elevator_state['internal_buttons']
+            passenger_count = elevator_state['passenger_count']
             
             for floor, pressed in enumerate(internal_buttons):
                 btn = self.elevator_buttons[elevator_id][floor]
-                if pressed:
-                    btn.configure(style="Pressed.TButton")
+                
+                # Disable button if elevator is empty
+                if passenger_count == 0:
+                    btn.configure(state="disabled", style="TButton")
+                    if pressed:
+                        # If button was pressed but elevator is empty, reset it
+                        self.elevator_buttons[elevator_id][floor].configure(style="TButton")
                 else:
-                    btn.configure(style="TButton")
+                    btn.configure(state="normal")
+                    if pressed:
+                        btn.configure(style="Pressed.TButton")
+                    else:
+                        btn.configure(style="TButton")
     
     def update_external_call_buttons(self):
         """Update the appearance of external call buttons based on current state"""
@@ -455,16 +476,18 @@ class ElevatorGUI:
                 calls = floor_state['elevator_calls'][elevator_id]
                 
                 # Update up button
-                if (floor, elevator_id, 'up') in self.external_call_buttons.get(floor, {}):
-                    btn = self.external_call_buttons[floor][(elevator_id, 'up')]
+                up_key = (elevator_id, 'up')
+                if floor in self.external_call_buttons and up_key in self.external_call_buttons[floor]:
+                    btn = self.external_call_buttons[floor][up_key]
                     if calls['call_up']:
                         btn.configure(style="Pressed.TButton")
                     else:
                         btn.configure(style="TButton")
                 
-                # Update down button
-                if (floor, elevator_id, 'down') in self.external_call_buttons.get(floor, {}):
-                    btn = self.external_call_buttons[floor][(elevator_id, 'down')]
+                # Update down button  
+                down_key = (elevator_id, 'down')
+                if floor in self.external_call_buttons and down_key in self.external_call_buttons[floor]:
+                    btn = self.external_call_buttons[floor][down_key]
                     if calls['call_down']:
                         btn.configure(style="Pressed.TButton")
                     else:
@@ -502,8 +525,8 @@ def main():
     style.configure("Pressed.TButton", background="red", foreground="white")
     
     # Configuration
-    NUM_FLOORS = 5  # Including ground floor (0)
-    NUM_ELEVATORS = 3
+    NUM_FLOORS = 10  # Including ground floor (0)
+    NUM_ELEVATORS = 4
     
     app = ElevatorGUI(root, NUM_FLOORS, NUM_ELEVATORS)
     root.mainloop()

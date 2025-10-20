@@ -20,6 +20,7 @@ This project implements an elevator dispatch system using reinforcement learning
 - Options for training, evaluating, and visualizing the RL agent's performance
 
 ### Enhanced simulation environment
+
 - Realistic Passenger Patterns:
   - Morning rush hour (8-10 AM) with upward traffic
   - Evening rush hour (5-7 PM) with downward traffic
@@ -30,6 +31,7 @@ This project implements an elevator dispatch system using reinforcement learning
   - Directional indicators (up/down/idle)
 
 ### Advanced Reinforcement Learning
+
 - Custom Observation Space:
   - Elevator positions, directions, and loads
   - Waiting passenger counts and wait times
@@ -41,6 +43,7 @@ This project implements an elevator dispatch system using reinforcement learning
   - Properly scaled and clipped rewards
 
 ### Interactive Visualization
+
 - Real-time GUI:
   - Building layout with elevator positions
   - Passenger destination visualization
@@ -55,33 +58,40 @@ This project implements an elevator dispatch system using reinforcement learning
 
 1. Ensure you have Python 3.7+ installed.
 2. Install the required libraries:
-   ```
+
+   ``` terminal
    pip install gymnasium stable-baselines3 numpy matplotlib
    ```
+
 3. Run the simulation:
 
    - To train the RL agent:
-     ```
+
+     ``` terminal
      python main.py --train --floors 5 --elevators 1 --timesteps 200000
      ```
 
    - To evaluate the trained agent:
-     ```
+
+     ``` terminal
      python main.py --evaluate <model path> --episodes 20 --floors 5 --elevators 1
      ```
 
    - To run the GUI simulation:
-     ```
+
+     ``` terminal
      python main.py --gui --floors 5 --elevators 1
      ```
 
    - You can also customize the simulation parameters:
-     ```
+
+     ``` terminal
      python main.py --train --floors 10 --elevators 4 --timesteps 500000
      ```
 
 4. To run the unit tests:
-   ```
+
+   ``` terminal
    python -m unittest test_elevator_system.py
    ```
 
@@ -118,6 +128,7 @@ The current implementation provides a production-ready elevator dispatch system 
 ## Future Improvements Roadmap
 
 ### Immediate Priorities (v1.1)
+
 1. **Enhanced Passenger Modeling**:
    - [ ] Add lunchtime traffic patterns (12-1 PM)
    - [ ] Implement special event generators
@@ -140,14 +151,15 @@ The current implementation provides a production-ready elevator dispatch system 
    - [ ] Hyperparameter optimization with Optuna
 
 ### Mid-Term Goals (v1.5)
-4. **GUI Enhancements**:
+
+1. **GUI Enhancements**:
    - [ ] Real-time 3D visualization option
    - [ ] Interactive scenario builder
    - [ ] Playback controls for simulation review
    - [ ] Enhanced real-time statistics and analytics
    - [ ] Comparative algorithm performance dashboard
 
-5. **Performance Optimization**:
+2. **Performance Optimization**:
    - [ ] Vectorized environment for faster training
    - [ ] Cython acceleration for core simulation
    - [ ] Distributed training support
@@ -155,7 +167,8 @@ The current implementation provides a production-ready elevator dispatch system 
    - [ ] Large-scale simulation support (50+ floors)
 
 ### ROS2 Integration (v2.0)
-6. **Distributed Architecture**:
+
+1. **Distributed Architecture**:
    - [ ] ROS2 node structure with custom message definitions
    - [ ] Distributed components (building manager, elevator controllers, RL agent)
    - [ ] Real-time communication between simulation components
@@ -163,14 +176,15 @@ The current implementation provides a production-ready elevator dispatch system 
    - [ ] ROS2-based visualization and monitoring
 
 ### Long-Term Vision (v3.0)
-7. **Advanced Features**:
+
+1. **Advanced Features**:
    - [ ] Predictive maintenance integration
    - [ ] Dynamic floor importance weighting
    - [ ] Multi-building coordination
    - [ ] Transfer learning between building configurations
    - [ ] Continuous learning from operational data
 
-8. **Deployment Ready**:
+2. **Deployment Ready**:
    - [ ] Docker containerization
    - [ ] REST API interface
    - [ ] Cloud training pipeline
@@ -178,6 +192,7 @@ The current implementation provides a production-ready elevator dispatch system 
    - [ ] Real-world data integration and adaptation
 
 ### Research & Development Focus
+
 - **State Representation Optimization**: Finding most efficient observation space
 - **Algorithm Performance**: Comparative analysis in elevator control domain  
 - **Real-world Transfer**: Bridging simulation-to-reality gap through ROS2
@@ -186,6 +201,7 @@ The current implementation provides a production-ready elevator dispatch system 
 ## How to Contribute
 
 We welcome contributions through:
+
 - Pull requests (with accompanying tests)
 - Issue reports (bug/feature)
 - Real-world traffic pattern datasets
