@@ -2,7 +2,7 @@ from entities.elevator import Elevator
 from entities.passenger import Passenger
 from collections import deque
 from utils.enums import ElevatorState
-import math
+import random
 
 class Building:
     def __init__(self, num_floors: int, num_elevators: int = 4, speed_multiplier: float = 1.0):
@@ -41,13 +41,186 @@ class Building:
         
         # call assignment tracking
         self.assigned_calls = {}  # (floor, direction) -> elevator_id
+        
+         # Random passenger generation - PROBABILISTIC APPROACH
+        self.passenger_generation_enabled = False
+        
+        # Generation parameters - PROBABILISTIC
+        self.base_generation_probability = 0.01  # 1% chance per time step at 1x speed
+        self.generation_probability = self.base_generation_probability
+        
+        # Enhanced metrics tracking
+        self.elevator_metrics = []
+        for i in range(num_elevators):
+            self.elevator_metrics.append({
+                'passengers_served': 0,
+                'total_waiting_time': 0,
+                'total_travel_time': 0,
+                'state_durations': {state: 0 for state in ElevatorState},
+            })
     
     def set_speed_multiplier(self, speed_multiplier: float):
         """Update speed multiplier for all elevators"""
         self.speed_multiplier = speed_multiplier
         for elevator in self.elevators:
             elevator.set_speed_multiplier(speed_multiplier)
+            
+        # Adjust generation probability based on speed (linear scaling)
+        self.generation_probability = self.base_generation_probability * speed_multiplier
+        print(f"Building speed set to {speed_multiplier}x - generation probability: {self.generation_probability:.3f}")
     
+    def start_passenger_generation(self):
+        """Start generating random passengers"""
+        self.passenger_generation_enabled = True
+        print("Started random passenger generation (probabilistic)")
+    
+    def stop_passenger_generation(self):
+        """Stop generating random passengers"""
+        self.passenger_generation_enabled = False
+        print("Stopped random passenger generation")
+    
+    def get_elevator_metrics_for_display(self, elevator_id):
+        """Get calculated metrics for graph display with 5-minute moving averages - FIXED FOR ALL ELEVATORS"""
+        if elevator_id >= len(self.elevator_metrics):
+            return {
+                'passengers_per_minute_5min': 0,
+                'avg_waiting_time': 0,
+                'avg_travel_time': 0,
+                'avg_idle_time_5min': 0
+            }
+        
+        metrics = self.elevator_metrics[elevator_id]
+        
+        # Calculate averages
+        passengers_served = metrics['passengers_served']
+        avg_waiting = metrics['total_waiting_time'] / passengers_served if passengers_served > 0 else 0
+        avg_travel = metrics['total_travel_time'] / passengers_served if passengers_served > 0 else 0
+        
+        # Initialize data structures for moving averages
+        if not hasattr(self, '_metrics_history'):
+            self._metrics_history = {
+                'timestamps': deque(maxlen=600),  # Store up to 10 minutes at 1-second resolution
+                'passenger_counts': [deque(maxlen=600) for _ in range(self.num_elevators)],
+                'idle_times': [deque(maxlen=600) for _ in range(self.num_elevators)],
+                'last_update_time': self.time
+            }
+        
+        # Add current timestamp and data (update every second for ALL elevators)
+        current_time = self.time
+        if current_time - self._metrics_history['last_update_time'] >= 1.0:
+            self._metrics_history['timestamps'].append(current_time)
+            
+            # Update data for ALL elevators, not just the current one
+            for elev_id in range(self.num_elevators):
+                elev_metrics = self.elevator_metrics[elev_id]
+                # Store current passenger count for this elevator
+                self._metrics_history['passenger_counts'][elev_id].append(elev_metrics['passengers_served'])
+                
+                # Store current idle time (in seconds) for this elevator
+                idle_seconds = elev_metrics['state_durations'][ElevatorState.IDLE]
+                self._metrics_history['idle_times'][elev_id].append(idle_seconds)
+            
+            self._metrics_history['last_update_time'] = current_time
+        
+        # Calculate 5-minute moving average for passenger service rate
+        passengers_per_minute_5min = self._calculate_5min_passenger_rate(elevator_id, current_time)
+        
+        # Calculate 5-minute average idle time (in minutes)
+        avg_idle_time_5min = self._calculate_5min_idle_time(elevator_id, current_time)
+                
+        return {
+            'passengers_per_minute_5min': passengers_per_minute_5min,
+            'avg_waiting_time': avg_waiting,
+            'avg_travel_time': avg_travel,
+            'avg_idle_time_5min': avg_idle_time_5min
+        }
+
+    def _calculate_5min_passenger_rate(self, elevator_id, current_time):
+        """Calculate passenger service rate over last 5 minutes - FIXED"""
+        timestamps = self._metrics_history['timestamps']
+        passenger_counts = self._metrics_history['passenger_counts'][elevator_id]
+        
+        if len(timestamps) < 2:
+            return 0
+        
+        # Find data points within the last 5 minutes (300 seconds)
+        five_min_ago = current_time - 300
+        
+        # If we don't have 5 minutes of data yet, use whatever we have
+        if timestamps[0] > five_min_ago:
+            # Use all available data (less than 5 minutes)
+            oldest_idx = 0
+            newest_idx = len(timestamps) - 1
+            actual_time_span = timestamps[newest_idx] - timestamps[oldest_idx]
+            
+            # If we have less than 30 seconds of data, return 0 to avoid noise
+            if actual_time_span < 30:
+                return 0
+        else:
+            # Find the oldest data point within the 5-minute window
+            oldest_idx = 0
+            for i, ts in enumerate(timestamps):
+                if ts >= five_min_ago:
+                    oldest_idx = i
+                    break
+            newest_idx = len(timestamps) - 1
+            actual_time_span = 300  # We have full 5 minutes
+        
+        if oldest_idx >= len(passenger_counts) or newest_idx >= len(passenger_counts):
+            return 0
+        
+        oldest_count = passenger_counts[oldest_idx]
+        newest_count = passenger_counts[newest_idx]
+        
+        # Calculate passengers per minute
+        passengers_delta = newest_count - oldest_count
+        passengers_per_minute = (passengers_delta / actual_time_span) * 60
+        
+        return max(0, passengers_per_minute)
+
+    def _calculate_5min_idle_time(self, elevator_id, current_time):
+        """Calculate average idle time in SECONDS over last 5 minutes - CHANGED TO SECONDS"""
+        timestamps = self._metrics_history['timestamps']
+        idle_times = self._metrics_history['idle_times'][elevator_id]
+        
+        if len(timestamps) < 2:
+            return 0
+        
+        # Find data points within the last 5 minutes (300 seconds)
+        five_min_ago = current_time - 300
+        
+        # If we don't have 5 minutes of data yet, use whatever we have
+        if timestamps[0] > five_min_ago:
+            # Use all available data (less than 5 minutes)
+            oldest_idx = 0
+            newest_idx = len(timestamps) - 1
+            actual_time_span = timestamps[newest_idx] - timestamps[oldest_idx]
+            
+            # If we have less than 30 seconds of data, return 0 to avoid noise
+            if actual_time_span < 30:
+                return 0
+        else:
+            # Find the oldest data point within the 5-minute window
+            oldest_idx = 0
+            for i, ts in enumerate(timestamps):
+                if ts >= five_min_ago:
+                    oldest_idx = i
+                    break
+            newest_idx = len(timestamps) - 1
+            actual_time_span = 300  # We have full 5 minutes
+        
+        if oldest_idx >= len(idle_times) or newest_idx >= len(idle_times):
+            return 0
+        
+        oldest_idle = idle_times[oldest_idx]
+        newest_idle = idle_times[newest_idx]
+        
+        # Calculate average idle time in SECONDS over the time span (REMOVED /60)
+        idle_delta = newest_idle - oldest_idle
+        avg_idle_seconds = idle_delta  # Now in seconds
+        
+        return max(0, avg_idle_seconds)
+
     def calculate_eta(self, elevator_id: int, target_floor: int):
         """Calculate Estimated Time Arrival for elevator to reach target floor"""
         elevator = self.elevators[elevator_id]
@@ -200,7 +373,16 @@ class Building:
     
     def step(self):
         """Advance simulation by one time step"""
-        self.time += self.time_step
+        self.time += self.time_step*self.speed_multiplier
+        
+        # Track elevator state changes for metric calculation
+        for elevator_id, elevator in enumerate(self.elevators):
+            metrics = self.elevator_metrics[elevator_id]
+            metrics['state_durations'][elevator.state] += self.time_step
+                
+        # Generate passengers probabilistically at each time step
+        if self.passenger_generation_enabled:
+            self._try_generate_passenger()
         
         # Process external calls for elevators that are idle
         self._process_pending_calls()
@@ -211,6 +393,82 @@ class Building:
         
         # Update passenger waiting times
         self._update_passenger_times()
+    
+    def _try_generate_passenger(self):
+        """Try to generate a passenger based on probability"""
+        # Check if we should generate a passenger this time step
+        if random.random() < self.generation_probability:
+            self._generate_random_passenger()
+    
+    def _generate_random_passenger(self):
+        """Generate a single random passenger with enhanced distribution"""
+        # Get current simulation hour (0-23)
+        current_hour = (self.time % 86400) / 3600
+        
+        # Enhanced distribution based on time of day
+        if current_hour < 6:  # Night (12 AM - 6 AM)
+            # Very low traffic, mostly random
+            if random.random() < 0.7:  # 30% ground-related
+                if random.random() < 0.5:
+                    start_floor, target_floor = 0, random.randint(1, self.num_floors - 1)
+                else:
+                    start_floor, target_floor = random.randint(1, self.num_floors - 1), 0
+            else:  # 30% inter-floor
+                start_floor = random.randint(0, self.num_floors - 1)
+                target_floor = random.choice([f for f in range(self.num_floors) if f != start_floor])
+        
+        elif 6 <= current_hour < 9:  # Morning rush (6 AM - 9 AM)
+            # Heavy upward traffic (people coming to work)
+            if random.random() < 0.85:  # 85% ground to floors
+                start_floor = 0
+                target_floor = random.randint(1, self.num_floors - 1)
+            else:  # 15% other
+                start_floor = random.randint(1, self.num_floors - 1)
+                target_floor = random.choice([f for f in range(self.num_floors) if f != start_floor])
+        
+        elif 9 <= current_hour < 17:  # Daytime (9 AM - 5 PM)
+            # Mixed traffic with some inter-floor movement
+            rand_val = random.random()
+            if rand_val < 0.8:  # 80% ground-related
+                if random.random() < 0.5:
+                    start_floor, target_floor = 0, random.randint(1, self.num_floors - 1)
+                else:
+                    start_floor, target_floor = random.randint(1, self.num_floors - 1), 0
+            else:  # 20% inter-floor
+                start_floor = random.randint(1, self.num_floors - 1)
+                target_floor = random.choice([f for f in range(1, self.num_floors) if f != start_floor])
+        
+        elif 17 <= current_hour < 20:  # Evening rush (5 PM - 8 PM)
+            # Heavy downward traffic (people going home)
+            if random.random() < 0.85:  # 85% floors to ground
+                start_floor = random.randint(1, self.num_floors - 1)
+                target_floor = 0
+            else:  # 15% other
+                start_floor = random.randint(0, self.num_floors - 1)
+                target_floor = random.choice([f for f in range(self.num_floors) if f != start_floor])
+        
+        else:  # Evening (8 PM - 12 AM)
+            # Moderate traffic, mostly ground-related
+            if random.random() < 0.7:  # 70% ground-related
+                if random.random() < 0.5:
+                    start_floor, target_floor = 0, random.randint(1, self.num_floors - 1)
+                else:
+                    start_floor, target_floor = random.randint(1, self.num_floors - 1), 0
+            else:  # 30% inter-floor
+                start_floor = random.randint(1, self.num_floors - 1)
+                target_floor = random.choice([f for f in range(1, self.num_floors) if f != start_floor])
+        
+        # Generate the passenger
+        passenger = self.add_passenger(start_floor, target_floor)
+        
+        if passenger:
+            # Log with time information
+            hours = int(current_hour)
+            minutes = int((current_hour - hours) * 60)
+            traffic_type = "G->F" if start_floor == 0 else "F->G" if target_floor == 0 else "F->F"
+            print(f"[{hours:02d}:{minutes:02d}] Generated {traffic_type} passenger {passenger.id}: {start_floor}->{target_floor}")
+        
+        return passenger
     
     def _process_passenger_boarding(self):
         """Process passenger boarding for all elevators with open doors"""

@@ -47,4 +47,4 @@ class Passenger:
     
     def __str__(self):
         status = "waiting" if self.is_waiting else "in_elevator" if self.is_in_elevator else "completed"
-        return f"Passenger {self.id}: {self.start_floor}→{self.target_floor} ({status})"
+        return f"Passenger {self.id}: {self.start_floor}->{self.target_floor} ({status})"

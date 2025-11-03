@@ -32,7 +32,7 @@ class Elevator:
         # State management
         self.state = ElevatorState.IDLE
         self.state_timer = 0
-        self.passengers = []
+        self.passengers: list[Passenger] = []
         self.position = 0.0
         
         # INTERNAL BUTTON PANEL
@@ -97,7 +97,7 @@ class Elevator:
             print(f"Elevator {self.id} manually triggered door cycle on floor {self.current_floor}")
     
     def step(self, building, time_step=1.0/60.0):
-        self.state_timer += time_step
+        self.state_timer += time_step*self.speed_multiplier
         
         if self.state == ElevatorState.MOVING_UP:
             self._move_with_physics(building, time_step, direction=1)
@@ -259,6 +259,17 @@ class Elevator:
         
         for passenger in passengers_to_check:
             if passenger.target_floor == current_floor:
+                # MARK PASSENGER AS COMPLETED FIRST to calculate total_time correctly
+                passenger.complete_journey(building.time)
+                
+                # UPDATE METRICS DIRECTLY IN BUILDING
+                if hasattr(building, 'elevator_metrics') and self.id < len(building.elevator_metrics):
+                    metrics = building.elevator_metrics[self.id]
+                    metrics['passengers_served'] += 1
+                    metrics['total_waiting_time'] += passenger.waiting_time
+                    if passenger.total_time:  # Only add if journey is completed
+                        metrics['total_travel_time'] += passenger.total_time
+                
                 # Remove passenger from elevator
                 if passenger in self.passengers:
                     self.passengers.remove(passenger)
@@ -266,7 +277,6 @@ class Elevator:
                     building.elevator_passengers[self.id].remove(passenger)
                 
                 # Complete passenger journey
-                passenger.complete_journey(building.time)
                 building.completed_passengers.append(passenger)
                 
                 unloaded_count += 1

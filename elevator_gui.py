@@ -4,6 +4,228 @@ import threading
 import time
 from building import Building
 from utils.enums import ElevatorState
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from collections import deque
+
+
+class GraphWindow:
+    def __init__(self, building: Building, num_elevators):
+        self.building = building
+        self.num_elevators = num_elevators
+        self.is_running = False
+        self.update_thread = None
+        
+        # Create the graph window
+        self.root = tk.Toplevel()
+        self.root.title("Elevator Performance Metrics")
+        self.root.geometry("1200x800")
+        
+        # Data storage for graphs
+        self.history_length = 100
+        self.time_data = deque(maxlen=self.history_length)
+        
+        # Passenger metrics
+        self.passengers_served = [deque(maxlen=self.history_length) for _ in range(num_elevators)]
+        self.avg_waiting_time = [deque(maxlen=self.history_length) for _ in range(num_elevators)]
+        self.avg_travel_time = [deque(maxlen=self.history_length) for _ in range(num_elevators)]
+        self.idle_percentage = [deque(maxlen=self.history_length) for _ in range(num_elevators)]
+        
+        self.setup_graphs()
+        self.start_updates()
+    
+    def setup_graphs(self):
+        """Setup the matplotlib figures and axes - UPDATED"""
+        # Create a figure with 4 subplots
+        self.fig, ((self.ax1, self.ax2), (self.ax3, self.ax4)) = plt.subplots(2, 2, figsize=(12, 8))
+        self.fig.tight_layout(pad=3.0)
+        
+        # Create canvas for tkinter
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Initialize empty plots for each elevator
+        self.lines_served = []
+        self.lines_waiting = []
+        self.lines_travel = []
+        self.lines_idle = []
+        
+        colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'cyan', 'magenta']
+        
+        for i in range(self.num_elevators):
+            color = colors[i % len(colors)]
+            # Passengers served per minute (5-min average)
+            line1, = self.ax1.plot([], [], label=f'E{i}', color=color, linewidth=2)
+            self.lines_served.append(line1)
+            
+            # Average waiting time
+            line2, = self.ax2.plot([], [], label=f'E{i}', color=color, linewidth=2)
+            self.lines_waiting.append(line2)
+            
+            # Average travel time
+            line3, = self.ax3.plot([], [], label=f'E{i}', color=color, linewidth=2)
+            self.lines_travel.append(line3)
+            
+            # Average idle time in minutes (5-min average)
+            line4, = self.ax4.plot([], [], label=f'E{i}', color=color, linewidth=2)
+            self.lines_idle.append(line4)
+        
+        # Setup axes with new labels
+        self.setup_axes()
+
+    def setup_axes(self):
+        """Setup the axes labels and formatting - UPDATED FOR 5-MIN AVG"""
+        # Passengers served per minute (5-minute moving average)
+        self.ax1.set_title('Passenger Service Rate (5-min Moving Average)')
+        self.ax1.set_xlabel('Time (s)')
+        self.ax1.set_ylabel('Passengers/Minute')
+        self.ax1.legend()
+        self.ax1.grid(True, alpha=0.3)
+        
+        # Average waiting time
+        self.ax2.set_title('Average Waiting Time')
+        self.ax2.set_xlabel('Time (s)')
+        self.ax2.set_ylabel('Time (s)')
+        self.ax2.legend()
+        self.ax2.grid(True, alpha=0.3)
+        
+        # Average travel time
+        self.ax3.set_title('Average Travel Time')
+        self.ax3.set_xlabel('Time (s)')
+        self.ax3.set_ylabel('Time (s)')
+        self.ax3.legend()
+        self.ax3.grid(True, alpha=0.3)
+        
+        # Average idle time in minutes (5-minute average) - CHANGED FROM PERCENTAGE
+        self.ax4.set_title('Average Idle Time (5-min Moving Average)')
+        self.ax4.set_xlabel('Time (s)')
+        self.ax4.set_ylabel('Idle Time (Seconds)')
+        self.ax4.legend()
+        self.ax4.grid(True, alpha=0.3)
+
+    def setup_controls(self):
+        """Add control buttons to the graph window"""
+        control_frame = ttk.Frame(self.root)
+        control_frame.pack(fill="x", padx=10, pady=5)
+        
+        ttk.Button(control_frame, text="Close", 
+                  command=self.close).pack(side="right", padx=5)
+        
+        ttk.Button(control_frame, text="Pause Updates", 
+                  command=self.toggle_updates).pack(side="right", padx=5)
+        
+        self.status_label = ttk.Label(control_frame, text="Updating...", foreground="green")
+        self.status_label.pack(side="left", padx=5)
+    
+    def start_updates(self):
+        """Start the graph update thread"""
+        self.is_running = True
+        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
+        self.update_thread.start()
+    
+    def toggle_updates(self):
+        """Toggle graph updates on/off"""
+        self.is_running = not self.is_running
+        if self.is_running:
+            self.status_label.config(text="Updating...", foreground="green")
+        else:
+            self.status_label.config(text="Paused", foreground="red")
+    
+    def update_loop(self):
+        """Main update loop running in separate thread"""
+        while True:
+            if self.is_running:
+                try:
+                    self.update_graphs()
+                except Exception as e:
+                    print(f"Graph update error: {e}")
+            time.sleep(0.5)  # Update every 500ms
+    
+    def update_graphs(self):
+        """Update the graphs with current data - UPDATED FOR NEW METRICS"""
+        current_time = getattr(self.building, 'time', 0)
+        
+        # Add current time to time data
+        self.time_data.append(current_time)
+        
+        # Get actual metrics from building
+        for elevator_id in range(self.num_elevators):
+            metrics = self.building.get_elevator_metrics_for_display(elevator_id)
+            
+            # Use the new 5-minute average metrics
+            passengers_per_minute_5min = metrics['passengers_per_minute_5min']
+            avg_waiting = metrics['avg_waiting_time']
+            avg_travel = metrics['avg_travel_time']
+            avg_idle_time_5min = metrics['avg_idle_time_5min']  # Now in minutes
+            
+            self.passengers_served[elevator_id].append(passengers_per_minute_5min)
+            self.avg_waiting_time[elevator_id].append(avg_waiting)
+            self.avg_travel_time[elevator_id].append(avg_travel)
+            self.idle_percentage[elevator_id].append(avg_idle_time_5min)  # Now stores idle time in minutes
+        
+        # Update each plot
+        for i in range(self.num_elevators):
+            if len(self.time_data) > 0:
+                # Passengers served per minute (5-min average)
+                if len(self.passengers_served[i]) > 0:
+                    self.lines_served[i].set_data(self.time_data, self.passengers_served[i])
+                
+                # Average waiting time
+                if len(self.avg_waiting_time[i]) > 0:
+                    self.lines_waiting[i].set_data(self.time_data, self.avg_waiting_time[i])
+                
+                # Average travel time
+                if len(self.avg_travel_time[i]) > 0:
+                    self.lines_travel[i].set_data(self.time_data, self.avg_travel_time[i])
+                
+                # Average idle time in minutes (5-min average)
+                if len(self.idle_percentage[i]) > 0:
+                    self.lines_idle[i].set_data(self.time_data, self.idle_percentage[i])
+        
+        # Adjust axes limits
+        self.adjust_axes_limits()
+        
+        # Redraw the canvas in the main thread
+        self.root.after(0, self.canvas.draw)
+
+    def adjust_axes_limits(self):
+        """Adjust the axes limits based on current data - UPDATED"""
+        if len(self.time_data) > 0:
+            time_min, time_max = min(self.time_data), max(self.time_data)
+            time_range = max(1, time_max - time_min)
+            
+            # Passengers served per minute
+            all_served = [max(data) if data else 0 for data in self.passengers_served]
+            max_served = max(all_served) if all_served else 5  # Lower default since it's rate
+            self.ax1.set_xlim(time_min - time_range * 0.1, time_max + time_range * 0.1)
+            self.ax1.set_ylim(0, max_served * 1.1)
+            
+            # Waiting time
+            all_waiting = [max(data) if data else 0 for data in self.avg_waiting_time]
+            max_waiting = max(all_waiting) if all_waiting else 10
+            self.ax2.set_xlim(time_min - time_range * 0.1, time_max + time_range * 0.1)
+            self.ax2.set_ylim(0, max_waiting * 1.1)
+            
+            # Travel time
+            all_travel = [max(data) if data else 0 for data in self.avg_travel_time]
+            max_travel = max(all_travel) if all_travel else 10
+            self.ax3.set_xlim(time_min - time_range * 0.1, time_max + time_range * 0.1)
+            self.ax3.set_ylim(0, max_travel * 1.1)
+            
+            # Idle time in minutes - dynamic scaling
+            all_idle = [max(data) if data else 0 for data in self.idle_percentage]
+            min_idle = min([min(data) if data else 0 for data in self.idle_percentage])
+            max_idle = max(all_idle) if all_idle else 5  # Default to 5 minutes
+            
+            self.ax4.set_xlim(time_min - time_range * 0.1, time_max + time_range * 0.1)
+            self.ax4.set_ylim(0, max_idle * 1.1) 
+
+    def close(self):
+        """Close the graph window"""
+        self.is_running = False
+        self.root.destroy()
+
 
 class ElevatorGUI:
     def __init__(self, root, num_floors=4, num_elevators=2):
@@ -16,9 +238,18 @@ class ElevatorGUI:
         self.simulation_thread = None
         self.elevator_buttons = {}  # Internal buttons
         self.external_call_buttons = {}  # External call buttons
+        self.generation_enabled = False
+        
+        self.panels_visible = True  # Track panel visibility state
+        
+        # Graph window reference
+        self.graph_window = None
         
         self.setup_gui()
         self.update_display()
+        
+        # Auto-open graph window on startup
+        self.open_graph_window()
         
     def setup_gui(self):
         self.root.title("Elevator Simulation - Individual Elevator Call Buttons")
@@ -44,6 +275,31 @@ class ElevatorGUI:
         self.speed_label = ttk.Label(control_frame, text="1.0x")
         self.speed_label.pack(side="left", padx=5)
         
+        # Add generation controls to passenger frame
+        ttk.Button(control_frame, text="Start Auto Generation", 
+                  command=self.start_passenger_generation, width=15).pack(side="left", padx=2)
+        ttk.Button(control_frame, text="Stop Auto Generation", 
+                  command=self.stop_passenger_generation, width=15).pack(side="left", padx=2)
+        
+        # Generation rate control
+        ttk.Label(control_frame, text="Rate:").pack(side="left", padx=2)
+        self.generation_rate_var = tk.DoubleVar(value=1.0)
+        ttk.Scale(control_frame, from_=1.0, to=10.0, variable=self.generation_rate_var,
+                 orient="horizontal", length=80, command=self.on_generation_rate_change).pack(side="left", padx=2)
+        self.generation_speed_label = ttk.Label(control_frame, text="1.0x")
+        self.generation_speed_label.pack(side="left", padx=2)
+        
+        # Passanger generation status label
+        self.generation_status = ttk.Label(control_frame, text="Passanger Generation: OFF", foreground="red")
+        self.generation_status.pack(side="left", padx=10)
+        
+        # Add panel visibility controls to control panel
+        ttk.Button(control_frame, text="Hide Panels", command=self.toggle_panels_visibility).pack(side="right", padx=5)
+        
+        # Graph window button
+        ttk.Button(control_frame, text="Show Graphs", 
+                  command=self.open_graph_window).pack(side="right", padx=5)
+        
         # Stats
         self.stats_label = ttk.Label(control_frame, text="Time: 00:00:00 | Waiting: 0")
         self.stats_label.pack(side="right", padx=10)
@@ -52,13 +308,6 @@ class ElevatorGUI:
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Left: External call buttons for ALL elevators on each floor
-        left_frame = ttk.Frame(main_frame)
-        left_frame.pack(side="left", fill="y", padx=10)
-        
-        ttk.Label(left_frame, text="External Call Buttons", font=("Arial", 12, "bold")).pack(pady=5)
-        self.setup_external_controls(left_frame)
-        
         # Middle: Elevator visualization
         middle_frame = ttk.Frame(main_frame)
         middle_frame.pack(side="left", fill="both", expand=True)
@@ -66,12 +315,64 @@ class ElevatorGUI:
         self.canvas = tk.Canvas(middle_frame, bg="white", highlightthickness=1, highlightbackground="gray")
         self.canvas.pack(fill="both", expand=True)
         
-        # Right: Individual elevator internal panels
-        right_frame = ttk.Frame(main_frame)
-        right_frame.pack(side="right", fill="y", padx=10)
+        # Left: External call buttons for ALL elevators on each floor
+        self.left_frame = ttk.Frame(main_frame)
+        self.left_frame.pack(side="left", fill="y", padx=10)
         
-        ttk.Label(right_frame, text="Elevator Internal Panels", font=("Arial", 12, "bold")).pack(pady=5)
-        self.setup_elevator_panels(right_frame)
+        ttk.Label(self.left_frame, text="External Call Buttons", font=("Arial", 12, "bold")).pack(pady=5)
+        self.setup_external_controls(self.left_frame)
+        
+        # Right: Individual elevator internal panels
+        self.right_frame = ttk.Frame(main_frame)
+        self.right_frame.pack(side="right", fill="y", padx=10)
+        
+        ttk.Label(self.right_frame, text="Elevator Internal Panels", font=("Arial", 12, "bold")).pack(pady=5)
+        self.setup_elevator_panels(self.right_frame)
+
+    def open_graph_window(self):
+        """Open or focus the graph window"""
+        if self.graph_window is None or not self.graph_window.root.winfo_exists():
+            self.graph_window = GraphWindow(self.building, self.num_elevators)
+            # When graph window closes, clear the reference
+            self.graph_window.root.protocol("WM_DELETE_WINDOW", self.on_graph_window_close)
+        else:
+            # Bring existing window to front
+            self.graph_window.root.lift()
+            self.graph_window.root.focus_force()
+    
+    def on_graph_window_close(self):
+        """Handle graph window closing"""
+        if self.graph_window:
+            self.graph_window.close()
+            self.graph_window = None
+            
+    def toggle_panels_visibility(self):
+        """Toggle visibility of all elevator panels"""
+        self.panels_visible = not self.panels_visible
+        
+        if self.panels_visible:
+            # Show panels
+            self.left_frame.pack(side="left", fill="y", padx=10)
+            self.right_frame.pack(side="right", fill="y", padx=10)
+            # Update button text
+            for widget in self.root.winfo_children():
+                if isinstance(widget, ttk.Frame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Button) and child.cget("text") == "Show Panels":
+                            child.config(text="Hide Panels")
+        else:
+            # Hide panels
+            self.left_frame.pack_forget()
+            self.right_frame.pack_forget()
+            # Update button text
+            for widget in self.root.winfo_children():
+                if isinstance(widget, ttk.Frame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Button) and child.cget("text") == "Hide Panels":
+                            child.config(text="Show Panels")
+        
+        # Update the display to use full width
+        self.update_display()
 
     def setup_external_controls(self, parent):
         """Setup external call buttons for EACH elevator on each floor"""
@@ -169,7 +470,35 @@ class ElevatorGUI:
         speed_value = self.speed_var.get()
         self.speed_label.config(text=f"{speed_value:.1f}x")
         self.building.set_speed_multiplier(speed_value)
-     
+
+    def on_generation_rate_change(self, event=None):
+        """Handle generation rate changes"""
+        rate_value = self.generation_rate_var.get()
+        # Update the label next to the scale
+        self.generation_speed_label.config(text=f"{rate_value:.1f}x")
+        
+        # Update building generation probability
+        if hasattr(self.building, 'base_generation_probability'):
+            # Scale probability linearly with rate
+            self.building.generation_probability = self.building.base_generation_probability * rate_value
+            print(f"Generation rate set to {rate_value:.1f}x - probability: {self.building.generation_probability:.4f}")
+    
+    def start_passenger_generation(self):
+        """Start automatic passenger generation"""
+        if not self.generation_enabled:
+            self.generation_enabled = True
+            self.building.start_passenger_generation()
+            self.generation_status.config(text="Passanger Generation: ON", foreground="green")
+            print("Started automatic passenger generation")
+    
+    def stop_passenger_generation(self):
+        """Stop automatic passenger generation"""
+        if self.generation_enabled:
+            self.generation_enabled = False
+            self.building.stop_passenger_generation()
+            self.generation_status.config(text="Passanger Generation: OFF", foreground="red")
+            print("Stopped automatic passenger generation")
+
     def call_elevator(self, floor: int, elevator_id: int, direction: str):
         """Handle external call button press for SPECIFIC elevator"""
         success = self.building.call_elevator(floor, elevator_id, direction)
@@ -216,8 +545,11 @@ class ElevatorGUI:
         self.is_running = False
     
     def reset_simulation(self):
+        self.stop_passenger_generation()
         self.pause_simulation()
         self.building = Building(self.num_floors, self.num_elevators, self.speed_var.get())
+        self.generation_enabled = False
+        self.generation_status.config(text="Passanger Generation: OFF", foreground="red")
         # Reset button colors
         for elevator_id in self.elevator_buttons:
             for floor, btn in self.elevator_buttons[elevator_id].items():
