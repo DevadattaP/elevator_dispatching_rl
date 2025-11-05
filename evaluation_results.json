@@ -1,0 +1,37 @@
+{
+    "rule_based": {
+        "avg_passengers_completed": 890.0,
+        "avg_wait_time": 27.453098115374598,
+        "avg_journey_time": 49.51906556005336
+    },
+    "PPO": {
+        "avg_passengers_completed": 884.4,
+        "avg_wait_time": 27.41825976504389,
+        "avg_journey_time": 50.33735753081277
+    },
+    "SAC": {
+        "avg_passengers_completed": 879.4,
+        "avg_wait_time": 26.905180321034834,
+        "avg_journey_time": 47.840439715621756
+    },
+    "TD3": {
+        "avg_passengers_completed": 876.4,
+        "avg_wait_time": 27.060104833821942,
+        "avg_journey_time": 49.58117460469903
+    },
+    "DDPG": {
+        "avg_passengers_completed": 884.0,
+        "avg_wait_time": 27.481365752713646,
+        "avg_journey_time": 51.33979553818136
+    },
+    "A2C": {
+        "avg_passengers_completed": 878.6,
+        "avg_wait_time": 27.276166154580288,
+        "avg_journey_time": 49.883297033210425
+    },
+    "DQN": {
+        "avg_passengers_completed": 890.8,
+        "avg_wait_time": 27.60455813444343,
+        "avg_journey_time": 50.694615958970665
+    }
+}

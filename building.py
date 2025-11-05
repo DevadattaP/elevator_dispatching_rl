@@ -3,6 +3,7 @@ from entities.passenger import Passenger
 from collections import deque
 from utils.enums import ElevatorState
 import random
+random.seed(42)
 
 class Building:
     def __init__(self, num_floors: int, num_elevators: int = 4, speed_multiplier: float = 1.0, capacity: int = 8, verbose: bool = False):

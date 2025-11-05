@@ -1,6 +1,7 @@
 from entities.passenger import Passenger
 from utils.enums import ElevatorState
 import random
+random.seed(42)
 
 class Elevator:
     def __init__(self, elevator_id: int, num_floors: int, speed_multiplier: float = 1.0, capacity: int = 8, verbose: bool = False):
