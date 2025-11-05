@@ -3,11 +3,12 @@ from utils.enums import ElevatorState
 import random
 
 class Elevator:
-    def __init__(self, elevator_id: int, num_floors: int, speed_multiplier: float = 1.0, capacity: int = 8):
+    def __init__(self, elevator_id: int, num_floors: int, speed_multiplier: float = 1.0, capacity: int = 8, verbose: bool = False):
         self.id = elevator_id
         self.num_floors = num_floors
         self.capacity = capacity
         self.speed_multiplier = speed_multiplier
+        self.verbose = verbose
         
         # Physical properties - make base values that get multiplied by speed_multiplier
         self.base_max_speed = 2.5  # Base speed without multiplier (floors per second)
@@ -50,10 +51,11 @@ class Elevator:
         self.door_open_time = self.base_door_open_time / speed_multiplier
         self.door_operation_time = self.base_door_operation_time / speed_multiplier
         
-        print(f"Elevator {self.id} speed set to {speed_multiplier}x: "
-              f"max_speed={self.max_speed:.1f}, "
-              f"door_open_time={self.door_open_time:.1f}s, "
-              f"door_operation_time={self.door_operation_time:.1f}s")
+        if self.verbose:
+            print(f"Elevator {self.id} speed set to {speed_multiplier}x: "
+                f"max_speed={self.max_speed:.1f}, "
+                f"door_open_time={self.door_open_time:.1f}s, "
+                f"door_operation_time={self.door_operation_time:.1f}s")
     
     def is_idle(self):
         return self.state == ElevatorState.IDLE
@@ -76,7 +78,8 @@ class Elevator:
         """Passenger presses a button INSIDE the elevator"""
         # Only allow internal button presses when there are passengers in the elevator
         if len(self.passengers) == 0:
-            print(f"Elevator {self.id}: Internal button for floor {floor} ignored - elevator is empty")
+            if self.verbose:
+                print(f"Elevator {self.id}: Internal button for floor {floor} ignored - elevator is empty")
             return False
         
         if 0 <= floor < self.num_floors and not self.internal_buttons[floor]:
@@ -85,7 +88,8 @@ class Elevator:
                 self.target_floors.add(floor)
                 # Sort targets after adding new internal call
                 self._sort_target_floors()
-                print(f"Elevator {self.id}: Internal button pressed for floor {floor}, targets: {self.target_floors}")
+                if self.verbose:
+                    print(f"Elevator {self.id}: Internal button pressed for floor {floor}, targets: {self.target_floors}")
             return True
         return False
     
@@ -94,7 +98,8 @@ class Elevator:
         if self.is_idle():
             self.state = ElevatorState.DOOR_OPENING
             self.state_timer = 0
-            print(f"Elevator {self.id} manually triggered door cycle on floor {self.current_floor}")
+            if self.verbose:
+                print(f"Elevator {self.id} manually triggered door cycle on floor {self.current_floor}")
     
     def step(self, building, time_step=1.0/60.0):
         self.state_timer += time_step*self.speed_multiplier
@@ -121,7 +126,8 @@ class Elevator:
             if self.state_timer >= self.door_open_time:
                 self.state = ElevatorState.DOOR_CLOSING
                 self.state_timer = 0
-                print(f"Elevator {self.id} doors closing at floor {self.current_floor}")
+                if self.verbose:
+                    print(f"Elevator {self.id} doors closing at floor {self.current_floor}")
                 # Final boarding check before closing
                 self._process_passenger_boarding_at_stop(building)
         elif self.state == ElevatorState.DOOR_CLOSING:
@@ -130,7 +136,8 @@ class Elevator:
     
     def _on_doors_opened(self, building):
         """Called when doors are fully open - handle passenger exchange"""
-        print(f"Elevator {self.id} doors fully opened at floor {self.current_floor}")
+        if self.verbose:
+            print(f"Elevator {self.id} doors fully opened at floor {self.current_floor}")
         
         # FIRST: Unload passengers who have reached their destination
         unloaded_count = self._unload_passengers_at_stop(building)
@@ -196,8 +203,9 @@ class Elevator:
         
         # Debug physics (optional)
         if random.random() < 0.01:  # Print occasionally to avoid spam
-            print(f"Elevator {self.id}: pos={self.position:.2f}, target={target_floor}, "
-                  f"dist={distance_to_target:.2f}, speed={self.current_speed:.2f}")
+            if self.verbose:
+                print(f"Elevator {self.id}: pos={self.position:.2f}, target={target_floor}, "
+                    f"dist={distance_to_target:.2f}, speed={self.current_speed:.2f}")
         
         # Check if we've reached the target floor
         if direction == 1 and self.position >= target_floor - 0.01:
@@ -232,7 +240,8 @@ class Elevator:
         self.state_timer = 0
         self.current_speed = 0.0
         
-        print(f"Elevator {self.id} reached floor {self.current_floor}, starting door opening sequence")
+        if self.verbose:
+            print(f"Elevator {self.id} reached floor {self.current_floor}, starting door opening sequence")
         
         # Clear this floor from targets and internal button
         self.target_floors.discard(self.current_floor)
@@ -280,14 +289,17 @@ class Elevator:
                 building.completed_passengers.append(passenger)
                 
                 unloaded_count += 1
-                print(f"Passenger {passenger.id} exited elevator {self.id} at floor {current_floor}")
+                if self.verbose:
+                    print(f"Passenger {passenger.id} exited elevator {self.id} at floor {current_floor}")
         
         if unloaded_count > 0:
-            print(f"Unloaded {unloaded_count} passengers from elevator {self.id}")
+            if self.verbose:
+                print(f"Unloaded {unloaded_count} passengers from elevator {self.id}")
             
             # Clear all internal buttons when elevator becomes empty
             if len(self.passengers) == 0:
-                print(f"Elevator {self.id} is now empty, clearing all internal buttons")
+                if self.verbose:
+                    print(f"Elevator {self.id} is now empty, clearing all internal buttons")
                 self.internal_buttons = [False] * self.num_floors
                 # Keep external targets but clear internal ones
                 external_targets = set()
@@ -300,9 +312,11 @@ class Elevator:
                 self.target_floors = external_targets
                 if self.target_floors:
                     self._sort_target_floors()
-                    print(f"Elevator {self.id} keeping external targets: {self.target_floors}")
+                    if self.verbose:
+                        print(f"Elevator {self.id} keeping external targets: {self.target_floors}")
                 else:
-                    print(f"Elevator {self.id} has no remaining targets")
+                    if self.verbose:
+                        print(f"Elevator {self.id} has no remaining targets")
         
         return unloaded_count
     
@@ -338,7 +352,8 @@ class Elevator:
             )
             
             if boarded_count > 0:
-                print(f"Boarded {boarded_count} passengers to elevator {self.id} on floor {current_floor}")
+                if self.verbose:
+                    print(f"Boarded {boarded_count} passengers to elevator {self.id} on floor {current_floor}")
                 
                 # After boarding, re-sort targets since we may have new internal calls
                 self._sort_target_floors()
@@ -351,7 +366,8 @@ class Elevator:
         if not self.target_floors:
             self.state = ElevatorState.IDLE
             self.direction = 0
-            print(f"Elevator {self.id} is now IDLE (no targets)")
+            if self.verbose:
+                print(f"Elevator {self.id} is now IDLE (no targets)")
             return
         
         # Get the next target floor
@@ -359,22 +375,27 @@ class Elevator:
         if next_floor is None:
             self.state = ElevatorState.IDLE
             self.direction = 0
-            print(f"Elevator {self.id} is now IDLE (no valid targets)")
+            if self.verbose:
+                print(f"Elevator {self.id} is now IDLE (no valid targets)")
             return
         
-        print(f"Elevator {self.id} choosing action: current={self.current_floor}, next={next_floor}, all_targets={self.target_floors}")
+        if self.verbose:
+            print(f"Elevator {self.id} choosing action: current={self.current_floor}, next={next_floor}, all_targets={self.target_floors}")
         
         if next_floor > self.current_floor:
             self.state = ElevatorState.MOVING_UP
             self.direction = 1
-            print(f"Elevator {self.id} starting to move UP to floor {next_floor}")
+            if self.verbose:
+                print(f"Elevator {self.id} starting to move UP to floor {next_floor}")
         elif next_floor < self.current_floor:
             self.state = ElevatorState.MOVING_DOWN
             self.direction = -1
-            print(f"Elevator {self.id} starting to move DOWN to floor {next_floor}")
+            if self.verbose:
+                print(f"Elevator {self.id} starting to move DOWN to floor {next_floor}")
         else:
             # If target is current floor, this shouldn't happen but handle it
-            print(f"Elevator {self.id} target {next_floor} is current floor, triggering door cycle")
+            if self.verbose:
+                print(f"Elevator {self.id} target {next_floor} is current floor, triggering door cycle")
             self.trigger_door_cycle(building)   
     
     def _sort_target_floors(self):
@@ -433,14 +454,16 @@ class Elevator:
         """Called when elevator is assigned to respond to external call"""
         if floor not in self.target_floors:
             self.target_floors.add(floor)
-            print(f"Elevator {self.id} assigned to floor {floor}, current targets: {self.target_floors}")
+            if self.verbose:
+                print(f"Elevator {self.id} assigned to floor {floor}, current targets: {self.target_floors}")
             
             # Sort the targets after adding new one
             self._sort_target_floors()
             
             # If elevator is idle, determine direction and start moving
             if self.is_idle():
-                print(f"Elevator {self.id} was IDLE, starting movement to {floor}")
+                if self.verbose:
+                    print(f"Elevator {self.id} was IDLE, starting movement to {floor}")
                 self._choose_next_action(None)
     
     def get_state(self):

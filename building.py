@@ -5,11 +5,12 @@ from utils.enums import ElevatorState
 import random
 
 class Building:
-    def __init__(self, num_floors: int, num_elevators: int = 4, speed_multiplier: float = 1.0):
+    def __init__(self, num_floors: int, num_elevators: int = 4, speed_multiplier: float = 1.0, capacity: int = 8, verbose: bool = False):
         self.num_floors = num_floors
         self.num_elevators = num_elevators
         self.speed_multiplier = speed_multiplier
-        self.elevators = [Elevator(i, num_floors, speed_multiplier) for i in range(num_elevators)]
+        self.verbose = verbose
+        self.elevators = [Elevator(i, num_floors, speed_multiplier, capacity, verbose) for i in range(num_elevators)]
         self.time = 0.0
         self.time_step = 1.0/60.0
         
@@ -67,17 +68,20 @@ class Building:
             
         # Adjust generation probability based on speed (linear scaling)
         self.generation_probability = self.base_generation_probability * speed_multiplier
-        print(f"Building speed set to {speed_multiplier}x - generation probability: {self.generation_probability:.3f}")
+        if self.verbose:
+            print(f"Building speed set to {speed_multiplier}x - generation probability: {self.generation_probability:.3f}")
     
     def start_passenger_generation(self):
         """Start generating random passengers"""
         self.passenger_generation_enabled = True
-        print("Started random passenger generation (probabilistic)")
+        if self.verbose:
+            print("Started random passenger generation (probabilistic)")
     
     def stop_passenger_generation(self):
         """Stop generating random passengers"""
         self.passenger_generation_enabled = False
-        print("Stopped random passenger generation")
+        if self.verbose:
+            print("Stopped random passenger generation")
     
     def get_elevator_metrics_for_display(self, elevator_id):
         """Get calculated metrics for graph display with 5-minute moving averages - FIXED FOR ALL ELEVATORS"""
@@ -296,7 +300,8 @@ class Building:
         
         if best_elevator_id is not None:
             self.assigned_calls[call_key] = best_elevator_id
-            print(f"Assigned floor {floor} {direction} call to elevator {best_elevator_id} (ETA: {min_eta:.1f}s)")
+            if self.verbose:
+                print(f"Assigned floor {floor} {direction} call to elevator {best_elevator_id} (ETA: {min_eta:.1f}s)")
         
         return best_elevator_id
     
@@ -315,15 +320,18 @@ class Building:
         
         elevator = self.elevators[elevator_id]
         
-        print(f"External call: Elevator {elevator_id} called to floor {floor} for {direction}")
+        if self.verbose:
+            print(f"External call: Elevator {elevator_id} called to floor {floor} for {direction}")
         
         # If elevator is already on the same floor
         if elevator.current_floor == floor:
-            print(f"Elevator {elevator_id} is already on floor {floor}")
+            if self.verbose:
+                print(f"Elevator {elevator_id} is already on floor {floor}")
             
             # If doors are open or opening, ensure we process boarding
             if elevator.state.value in [ElevatorState.DOOR_OPEN.value, ElevatorState.DOOR_OPENING.value]:
-                print(f"Elevator {elevator_id} doors are already open/opening on floor {floor}")
+                if self.verbose:
+                    print(f"Elevator {elevator_id} doors are already open/opening on floor {floor}")
                 # Boarding will be handled in the elevator's step method
             else:
                 # If idle or moving, trigger door cycle
@@ -335,7 +343,8 @@ class Building:
         else:
             # Add the floor to elevator's targets
             elevator.assign_target(floor)
-            print(f"Dispatched elevator {elevator_id} to floor {floor} for {direction} call")
+            if self.verbose:
+                print(f"Dispatched elevator {elevator_id} to floor {floor} for {direction} call")
         
         return True
     
@@ -357,7 +366,8 @@ class Building:
         
         # Add to waiting queue for the floor (FIFO)
         self.active_passengers[start_floor].append(passenger)
-        print(f"Added passenger {passenger.id} from floor {start_floor} to {target_floor}")
+        if self.verbose:
+            print(f"Added passenger {passenger.id} from floor {start_floor} to {target_floor}")
         
         # SMART ASSIGNMENT: Assign to best elevator only
         assigned_elevator_id = self.assign_call_to_best_elevator(start_floor, direction)
@@ -365,9 +375,11 @@ class Building:
         if assigned_elevator_id is not None:
             # Call only the assigned elevator
             self.call_elevator(start_floor, assigned_elevator_id, direction)
-            print(f"Assigned elevator {assigned_elevator_id} to pick up passenger {passenger.id}")
+            if self.verbose:
+                print(f"Assigned elevator {assigned_elevator_id} to pick up passenger {passenger.id}")
         else:
-            print(f"No available elevator found for passenger {passenger.id}")
+            if self.verbose:
+                print(f"No available elevator found for passenger {passenger.id}")
         
         return passenger
     
@@ -466,7 +478,8 @@ class Building:
             hours = int(current_hour)
             minutes = int((current_hour - hours) * 60)
             traffic_type = "G->F" if start_floor == 0 else "F->G" if target_floor == 0 else "F->F"
-            print(f"[{hours:02d}:{minutes:02d}] Generated {traffic_type} passenger {passenger.id}: {start_floor}->{target_floor}")
+            if self.verbose:
+                print(f"[{hours:02d}:{minutes:02d}] Generated {traffic_type} passenger {passenger.id}: {start_floor}->{target_floor}")
         
         return passenger
     
@@ -486,7 +499,8 @@ class Building:
                     )
                     
                     if boarded_count > 0:
-                        print(f"Boarded {boarded_count} passengers to elevator {elevator_id} on floor {current_floor}")
+                        if self.verbose:
+                            print(f"Boarded {boarded_count} passengers to elevator {elevator_id} on floor {current_floor}")
     
     def _process_pending_calls(self):
         """Process any pending external calls that haven't been served"""
@@ -526,16 +540,19 @@ class Building:
             call_key = (floor, direction)
             if call_key in self.assigned_calls and self.assigned_calls[call_key] == elevator_id:
                 del self.assigned_calls[call_key]
-                print(f"Removed assigned call {call_key} for elevator {elevator_id}")
+                if self.verbose:
+                    print(f"Removed assigned call {call_key} for elevator {elevator_id}")
             
             # Always clear the call when elevator arrives at the floor
             # The boarding logic will handle whether passengers actually board
             if direction == 'up' and self.external_calls[floor][elevator_id]['up'] is not None:
                 self.external_calls[floor][elevator_id]['up'] = False
-                print(f"Cleared up call for elevator {elevator_id} on floor {floor}")
+                if self.verbose:
+                    print(f"Cleared up call for elevator {elevator_id} on floor {floor}")
             elif direction == 'down' and self.external_calls[floor][elevator_id]['down'] is not None:
                 self.external_calls[floor][elevator_id]['down'] = False
-                print(f"Cleared down call for elevator {elevator_id} on floor {floor}")
+                if self.verbose:
+                    print(f"Cleared down call for elevator {elevator_id} on floor {floor}")
     
     def _process_passenger_boarding_at_floor(self, floor: int, direction: str):
         """Check if we should clear calls after boarding - called from elevator boarding"""
@@ -555,7 +572,8 @@ class Building:
             if call_key in self.assigned_calls:
                 del self.assigned_calls[call_key]
             
-            print(f"Cleared all {direction} calls on floor {floor} - no more waiting passengers")
+            if self.verbose:
+                print(f"Cleared all {direction} calls on floor {floor} - no more waiting passengers")
     
     def get_available_elevators_for_floor(self, floor: int, direction: str):
         """Get elevators that are available to serve passengers on this floor"""
@@ -661,7 +679,8 @@ class Building:
                     elevator._sort_target_floors()
                 
                 boarded_count += 1
-                print(f"Passenger {passenger.id} boarded elevator {elevator_id} to floor {passenger.target_floor}")
+                if self.verbose:
+                    print(f"Passenger {passenger.id} boarded elevator {elevator_id} to floor {passenger.target_floor}")
                 
                 # Update intended direction after boarding (may have changed)
                 intended_direction = get_elevator_intended_direction(elevator, floor)
