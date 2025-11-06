@@ -1,37 +1,280 @@
 {
     "rule_based": {
-        "avg_passengers_completed": 890.0,
-        "avg_wait_time": 27.453098115374598,
-        "avg_journey_time": 49.51906556005336
+        "simple": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 351.6,
+                    "avg_wait_time": 11.054593922223932,
+                    "avg_journey_time": 15.500002607910181
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 355.0,
+                    "avg_wait_time": 11.01682152506983,
+                    "avg_journey_time": 15.266360882230984
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 352.4,
+                    "avg_wait_time": 11.099377319195584,
+                    "avg_journey_time": 15.445535780389225
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 355.6,
+                    "avg_wait_time": 11.17114648931438,
+                    "avg_journey_time": 15.781638247577837
+                }
+            }
+        }
     },
     "PPO": {
-        "avg_passengers_completed": 884.4,
-        "avg_wait_time": 27.41825976504389,
-        "avg_journey_time": 50.33735753081277
-    },
-    "SAC": {
-        "avg_passengers_completed": 879.4,
-        "avg_wait_time": 26.905180321034834,
-        "avg_journey_time": 47.840439715621756
-    },
-    "TD3": {
-        "avg_passengers_completed": 876.4,
-        "avg_wait_time": 27.060104833821942,
-        "avg_journey_time": 49.58117460469903
-    },
-    "DDPG": {
-        "avg_passengers_completed": 884.0,
-        "avg_wait_time": 27.481365752713646,
-        "avg_journey_time": 51.33979553818136
+        "simple": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 355.8,
+                    "avg_wait_time": 11.628961927021965,
+                    "avg_journey_time": 17.687649353683813
+                },
+                "continuous": {
+                    "avg_passengers_completed": 354.6,
+                    "avg_wait_time": 11.609006556772862,
+                    "avg_journey_time": 18.118434996387283
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 346.8,
+                    "avg_wait_time": 11.650778549201009,
+                    "avg_journey_time": 18.123435262789553
+                },
+                "continuous": {
+                    "avg_passengers_completed": 360.4,
+                    "avg_wait_time": 11.80192653569171,
+                    "avg_journey_time": 18.144056854402475
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 360.8,
+                    "avg_wait_time": 11.757052906738666,
+                    "avg_journey_time": 17.881331204219663
+                },
+                "continuous": {
+                    "avg_passengers_completed": 343.0,
+                    "avg_wait_time": 11.375828903417222,
+                    "avg_journey_time": 16.868775683381354
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 362.8,
+                    "avg_wait_time": 11.883321003727776,
+                    "avg_journey_time": 17.96700815666187
+                },
+                "continuous": {
+                    "avg_passengers_completed": 372.4,
+                    "avg_wait_time": 11.610514663122647,
+                    "avg_journey_time": 17.528140825482275
+                }
+            }
+        }
     },
     "A2C": {
-        "avg_passengers_completed": 878.6,
-        "avg_wait_time": 27.276166154580288,
-        "avg_journey_time": 49.883297033210425
+        "simple": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 357.4,
+                    "avg_wait_time": 11.627279907121654,
+                    "avg_journey_time": 17.108445743196732
+                },
+                "continuous": {
+                    "avg_passengers_completed": 362.2,
+                    "avg_wait_time": 11.69528840479863,
+                    "avg_journey_time": 17.64352150030614
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 351.6,
+                    "avg_wait_time": 11.834240684345293,
+                    "avg_journey_time": 18.25271290064582
+                },
+                "continuous": {
+                    "avg_passengers_completed": 366.0,
+                    "avg_wait_time": 11.510465775650292,
+                    "avg_journey_time": 17.175745453900568
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 358.4,
+                    "avg_wait_time": 11.541098449606343,
+                    "avg_journey_time": 17.20543461877343
+                },
+                "continuous": {
+                    "avg_passengers_completed": 366.8,
+                    "avg_wait_time": 11.508387871784688,
+                    "avg_journey_time": 17.019096646243185
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 360.0,
+                    "avg_wait_time": 11.475527632453574,
+                    "avg_journey_time": 16.994405790072573
+                },
+                "continuous": {
+                    "avg_passengers_completed": 349.6,
+                    "avg_wait_time": 11.372544491275818,
+                    "avg_journey_time": 16.715367513267392
+                }
+            }
+        }
     },
     "DQN": {
-        "avg_passengers_completed": 890.8,
-        "avg_wait_time": 27.60455813444343,
-        "avg_journey_time": 50.694615958970665
+        "simple": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 353.8,
+                    "avg_wait_time": 11.307593637605555,
+                    "avg_journey_time": 16.285273016407082
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 358.8,
+                    "avg_wait_time": 11.669243813999838,
+                    "avg_journey_time": 17.76894390806142
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "discrete": {
+                    "avg_passengers_completed": 361.0,
+                    "avg_wait_time": 11.41488081009054,
+                    "avg_journey_time": 16.15574424257689
+                }
+            },
+            "complex": {
+                "discrete": {
+                    "avg_passengers_completed": 360.2,
+                    "avg_wait_time": 11.302705096899363,
+                    "avg_journey_time": 16.139595204955604
+                }
+            }
+        }
+    },
+    "SAC": {
+        "simple": {
+            "simple": {
+                "continuous": {
+                    "avg_passengers_completed": 356.0,
+                    "avg_wait_time": 11.529302154468104,
+                    "avg_journey_time": 17.957662192422838
+                }
+            },
+            "complex": {
+                "continuous": {
+                    "avg_passengers_completed": 357.4,
+                    "avg_wait_time": 11.907531846165224,
+                    "avg_journey_time": 18.559322821422924
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "continuous": {
+                    "avg_passengers_completed": 377.2,
+                    "avg_wait_time": 11.530681280223906,
+                    "avg_journey_time": 17.66429367690302
+                }
+            },
+            "complex": {
+                "continuous": {
+                    "avg_passengers_completed": 357.4,
+                    "avg_wait_time": 11.791640201508821,
+                    "avg_journey_time": 18.62730503606602
+                }
+            }
+        }
+    },
+    "TD3": {
+        "simple": {
+            "simple": {
+                "continuous": {
+                    "avg_passengers_completed": 354.4,
+                    "avg_wait_time": 11.69361007154912,
+                    "avg_journey_time": 18.38021113442812
+                }
+            },
+            "complex": {
+                "continuous": {
+                    "avg_passengers_completed": 359.4,
+                    "avg_wait_time": 11.806323638413614,
+                    "avg_journey_time": 18.518655197837326
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "continuous": {
+                    "avg_passengers_completed": 350.2,
+                    "avg_wait_time": 11.136083279942183,
+                    "avg_journey_time": 15.69012282084778
+                }
+            },
+            "complex": {
+                "continuous": {
+                    "avg_passengers_completed": 360.0,
+                    "avg_wait_time": 11.648374764343638,
+                    "avg_journey_time": 18.261326926178587
+                }
+            }
+        }
+    },
+    "DDPG": {
+        "simple": {
+            "simple": {
+                "continuous": {
+                    "avg_passengers_completed": 336.0,
+                    "avg_wait_time": 11.677163377165833,
+                    "avg_journey_time": 18.407547742292735
+                }
+            },
+            "complex": {
+                "continuous": {
+                    "avg_passengers_completed": 362.2,
+                    "avg_wait_time": 11.770654878517615,
+                    "avg_journey_time": 18.424737955990533
+                }
+            }
+        },
+        "detailed": {
+            "simple": {
+                "continuous": {
+                    "avg_passengers_completed": 356.4,
+                    "avg_wait_time": 11.322010038855383,
+                    "avg_journey_time": 16.20783538103264
+                }
+            },
+            "complex": {
+                "continuous": {
+                    "avg_passengers_completed": 360.6,
+                    "avg_wait_time": 11.82591198464427,
+                    "avg_journey_time": 18.293692591754155
+                }
+            }
+        }
     }
 }
