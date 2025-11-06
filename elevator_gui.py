@@ -2,9 +2,11 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import time
+import os
 from building import Building
 from utils.enums import ElevatorState
 from graphs import GraphWindow
+from stable_baselines3 import PPO, A2C, DQN, SAC, TD3, DDPG
 
 
 class ElevatorGUI:
@@ -27,6 +29,10 @@ class ElevatorGUI:
         # Graph window reference
         self.graph_window = None
         
+        self.model = None
+        self.env = None
+        self.agent_type = tk.StringVar(value="rule_based")  # track mode
+        
         self.setup_gui()
         self.update_display()
         
@@ -41,6 +47,15 @@ class ElevatorGUI:
         control_frame = ttk.Frame(self.root, padding="10")
         control_frame.pack(fill="x")
         
+        # Agent selector
+        ttk.Label(control_frame, text="Agent:").pack(side="left", padx=5)
+        agent_choices = ["rule_based", "PPO", "A2C", "DQN", "SAC", "TD3", "DDPG"]
+        self.agent_menu = ttk.Combobox(control_frame, textvariable=self.agent_type, values=agent_choices, width=10, state="readonly")
+        self.agent_menu.pack(side="left", padx=5)
+
+        # Load model button
+        ttk.Button(control_frame, text="Load Model", command=self.load_agent_model).pack(side="left", padx=5)
+
         # Simulation controls
         ttk.Button(control_frame, text="Start", command=self.start_simulation).pack(side="left", padx=5)
         ttk.Button(control_frame, text="Pause", command=self.pause_simulation).pack(side="left", padx=5)
@@ -110,6 +125,45 @@ class ElevatorGUI:
         
         ttk.Label(self.right_frame, text="Elevator Internal Panels", font=("Arial", 12, "bold")).pack(pady=5)
         self.setup_elevator_panels(self.right_frame)
+
+    def load_agent_model(self):
+        """Load a pre-trained RL model for the selected agent."""
+        model_name = self.agent_type.get()
+        if model_name == "rule_based":
+            self.model = None
+            return
+        
+        model_path = f"models/{model_name}_detailed_complex_continuous/{model_name}_detailed_complex_continuous_model.zip"
+        if not os.path.exists(model_path):
+            print(f"Model file not found: {model_path}")
+            return
+        
+        # Create a gym-like wrapper for your building environment
+        from elevator_env import ElevatorEnv, FlattenMultiDiscreteWrapper
+        if model_name == "DQN":
+            env_class = FlattenMultiDiscreteWrapper
+        else:
+            env_class = ElevatorEnv
+        self.env = env_class(
+            observation_type="detailed",
+            reward_type="complex",
+            action_type="continuous",
+            num_floors=self.num_floors,
+            num_elevators=self.num_elevators,
+            verbose=0
+        )
+        
+        MODEL_MAP = {
+            "PPO": PPO,
+            "A2C": A2C,
+            "DQN": DQN,
+            "SAC": SAC,
+            "TD3": TD3,
+            "DDPG": DDPG
+        }
+        
+        ModelClass = MODEL_MAP[model_name]
+        self.model = ModelClass.load(model_path)
 
     def open_graph_window(self):
         """Open or focus the graph window"""
@@ -344,8 +398,21 @@ class ElevatorGUI:
         self.update_display()
     
     def run_simulation(self):
+        if self.model is not None:
+            obs, info = self.env.reset()
+            terminated, truncated = False, False
         while self.is_running:
-            self.building.step()
+            if self.model is None:
+                # Rule-based control
+                self.building.step()
+            else:
+                # RL-based control using Gym interface
+                action, _ = self.model.predict(obs, deterministic=True)
+                obs, reward, terminated, truncated, info = self.env.step(action)
+                if terminated or truncated:
+                    self.env.reset()
+                self.building = self.env.building  # Sync GUI with env
+
             self.root.after(0, self.update_display)
             time.sleep(0.016)
             
@@ -454,6 +521,8 @@ class ElevatorGUI:
 
     def update_display(self):
         self.canvas.delete("all")
+        agent_name = self.agent_type.get()
+        self.root.title(f"Elevator Simulation - {agent_name.upper()} Agent")
         self.draw_building()
         self.draw_elevators()
         self.draw_passengers()

@@ -1,30 +1,13 @@
 import time
 import numpy as np
 from stable_baselines3 import PPO, A2C, DQN, SAC, TD3, DDPG
-from elevator_env import ElevatorEnv
+from elevator_env import ElevatorEnv, FlattenMultiDiscreteWrapper
 import os
 import json
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.noise import NormalActionNoise
-from gymnasium import spaces
 
 np.random.seed(42)
-
-
-# ===== Helper Wrapper for DQN =====
-class FlattenMultiDiscreteWrapper(ElevatorEnv):
-    """Wraps a MultiDiscrete action space into a single Discrete action for DQN."""
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        assert isinstance(self.action_space, spaces.MultiDiscrete)
-        self.original_action_space = self.action_space
-        self.action_space = spaces.Discrete(np.prod(self.original_action_space.nvec))
-
-    def step(self, action):
-        # Convert flat action index back to multidiscrete vector
-        actions = np.unravel_index(action, self.original_action_space.nvec)
-        return super().step(np.array(actions))
-
 
 # ===== RL Agent Training =====
 def train_rl_agent(model_name: str, observation_type: str, reward_type: str,
