@@ -6,7 +6,7 @@ import random
 random.seed(42)
 
 class Building:
-    def __init__(self, num_floors: int, num_elevators: int = 4, speed_multiplier: float = 1.0, capacity: int = 8, verbose: bool = False):
+    def __init__(self, num_floors: int = 10, num_elevators: int = 4, speed_multiplier: float = 1.0, capacity: int = 8, verbose: bool = False):
         self.num_floors = num_floors
         self.num_elevators = num_elevators
         self.speed_multiplier = speed_multiplier
@@ -384,6 +384,15 @@ class Building:
         
         return passenger
     
+    def get_calls_for_elevator(self, elevator_id: int):
+        """Generator that yields any active external calls for a specific elevator."""
+        for floor in range(self.num_floors):
+            calls_for_elevator_on_floor = self.external_calls[floor].get(elevator_id, {})
+            if calls_for_elevator_on_floor.get('up'):
+                yield (floor, 'up')
+            if calls_for_elevator_on_floor.get('down'):
+                yield (floor, 'down')
+    
     def step(self):
         """Advance simulation by one time step"""
         self.time += self.time_step*self.speed_multiplier
@@ -402,8 +411,26 @@ class Building:
         
         # Update all elevators
         for elevator in self.elevators:
-            elevator.step(self, self.time_step)
-        
+            passengers_boarded, passengers_alighted = elevator.step(self, self.time_step)
+            
+            # Check if the stop was unnecessary
+            if elevator.state == ElevatorState.DOOR_OPEN and passengers_boarded == 0 and passengers_alighted == 0:
+                # Check if there were any potential passengers to pick up
+                floor = int(round(elevator.current_floor))
+                waiting_passengers_on_floor = self.active_passengers.get(floor, [])
+                
+                can_board = False
+                if waiting_passengers_on_floor:
+                    # Check if any waiting passenger is compatible with elevator direction
+                    for p in waiting_passengers_on_floor:
+                        if elevator.direction == 0 or (p.direction == 'up' and elevator.direction == 1) or (p.direction == 'down' and elevator.direction == -1):
+                            can_board = True
+                            break
+                
+                # If no one boarded/alighted and no one could have boarded, it was an unnecessary stop
+                if not can_board:
+                    elevator.last_stop_was_unnecessary = True
+
         # Update passenger waiting times
         self._update_passenger_times()
     

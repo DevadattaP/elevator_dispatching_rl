@@ -80,6 +80,12 @@ class ElevatorEnv(gym.Env):
             # Let's cap this at a reasonable number, e.g., 20 passengers
             self.max_observed_passengers = 20
             obs_dim += self.max_observed_passengers * 3
+            
+            # Add internal destinations for each elevator (one-hot encoded)
+            obs_dim += self.num_elevators * self.num_floors
+            
+            # Add average travel time for passengers inside each elevator
+            obs_dim += self.num_elevators
         
         if self.verbose > 0:
             print(f"Observation type: '{self.observation_type}', Dimension: {obs_dim}")
@@ -91,59 +97,90 @@ class ElevatorEnv(gym.Env):
         # We can add a special action for 'idle' if needed, e.g., num_floors
         # For now, sending an elevator to its current floor can be interpreted as idle
         if self.action_type == 'discrete':
-            return spaces.MultiDiscrete([self.num_floors] * self.num_elevators)
+            return spaces.MultiDiscrete([self.num_floors + 1] * self.num_elevators)
         elif self.action_type == 'continuous':
             # Continuous action space: one float per elevator, from -1 to 1
-            # We will scale this to the number of floors
+            # We will scale this to the number of floors, with a value for idle
             return spaces.Box(low=-1.0, high=1.0, shape=(self.num_elevators,), dtype=np.float32)
         else:
             raise NotImplementedError(f"Action type '{self.action_type}' not implemented.")
 
     def _get_state_representation(self) -> np.ndarray:
-        """Convert building state to RL observation vector."""
+        """Convert building state to RL observation vector with proper normalization."""
         state = self.building.get_state()
         obs = []
         
-        # 1. Elevator information (4 values per elevator)
+        # 1. Elevator information (4 values per elevator) - WITH None HANDLING
         for elevator_state in state['elevators']:
+            # Handle None direction by converting to 0 (idle)
+            direction = elevator_state['direction']
+            if direction is None:
+                direction = 0
+            
             obs.extend([
-                elevator_state['position'] / self.num_floors,
-                elevator_state['direction'], # -1, 0, 1
-                elevator_state['state'] / len(ElevatorState),
-                elevator_state['passenger_count'] / self.building.elevators[0].capacity
+                elevator_state['position'] / self.num_floors,  # [0, 1]
+                (direction + 1) / 2,                           # [-1,0,1] -> [0,0.5,1]
+                elevator_state['state'] / len(ElevatorState),  # [0, 1]
+                min(elevator_state['passenger_count'] / self.building.elevators[0].capacity, 1.0)  # [0, 1]
             ])
         
-        # 2. Floor waiting queues (2 values per floor)
+        # 2. Floor waiting queues (2 values per floor) - NORMALIZED
+        max_waiting = 10.0  # Reasonable maximum
         for floor in range(self.num_floors):
+            floor_state = state['floors'][floor]
             obs.extend([
-                state['floors'][floor]['waiting_up'],
-                state['floors'][floor]['waiting_down']
+                min(floor_state['waiting_up'] / max_waiting, 1.0),
+                min(floor_state['waiting_down'] / max_waiting, 1.0)
             ])
         
-        # 3. Time of day (2 values - cyclic encoding)
-        current_time = state['time'] % 86400  # Seconds in day
+        # 3. Time of day (2 values - cyclic encoding) - ALREADY NORMALIZED
+        current_time = state['time'] % 86400
         obs.append(np.sin(2 * np.pi * current_time / 86400))
         obs.append(np.cos(2 * np.pi * current_time / 86400))
 
-        # 4. (Optional) Detailed passenger info
+        # 4. (Optional) Detailed passenger info - PROPERLY NORMALIZED
         if self.observation_type == 'detailed':
+            # Waiting passenger details
             waiting_passengers = []
             for floor_passengers in self.building.active_passengers.values():
                 waiting_passengers.extend(list(floor_passengers))
             
-            # Sort by waiting time to prioritize
             waiting_passengers.sort(key=lambda p: p.waiting_time, reverse=True)
             
+            max_wait_time = 300.0  # 5 minutes maximum expected wait
             for i in range(self.max_observed_passengers):
                 if i < len(waiting_passengers):
                     p = waiting_passengers[i]
-                    obs.extend([p.start_floor, p.target_floor, p.waiting_time])
+                    obs.extend([
+                        p.start_floor / self.num_floors,
+                        p.target_floor / self.num_floors,
+                        min(p.waiting_time / max_wait_time, 1.0)
+                    ])
                 else:
-                    obs.extend([-1, -1, -1]) # Padding
+                    obs.extend([0.0, 0.0, 0.0])  # Zero padding instead of -1
+
+            # Internal destinations and travel times
+            max_travel_time = 600.0  # 10 minutes maximum expected travel
+            for i, elevator in enumerate(self.building.elevators):
+                internal_requests = [0] * self.num_floors
+                travel_times = []
+                for p in elevator.passengers:
+                    internal_requests[p.target_floor] = 1
+                    travel_times.append(self.building.time - p.boarding_time)
+                
+                obs.extend(internal_requests)  # Already binary [0,1]
+                
+                avg_travel_time = np.mean(travel_times) if travel_times else 0
+                obs.append(min(avg_travel_time / max_travel_time, 1.0))
 
         obs_array = np.array(obs, dtype=np.float32)
         
-        # Debug: Check dimension matches
+        # Replace any remaining NaN/inf with zeros
+        obs_array = np.nan_to_num(obs_array, nan=0.0, posinf=1.0, neginf=0.0)
+        
+        # Clip to safe range
+        obs_array = np.clip(obs_array, -1.0, 1.0)
+        
         expected_dim = self._calculate_observation_dimension()
         if len(obs_array) != expected_dim:
             raise ValueError(f"Observation dimension mismatch! Expected {expected_dim}, got {len(obs_array)}")
@@ -160,56 +197,67 @@ class ElevatorEnv(gym.Env):
             raise NotImplementedError(f"Reward type '{self.reward_type}' not implemented.")
 
     def _calculate_simple_reward(self) -> float:
-        """A simple reward based on completions and waiting count."""
+        """A simple reward with proper scaling."""
         reward = 0.0
         
-        # Reward for completed passengers
+        # Reward for completed passengers (scaled)
         new_completions = len(self.building.completed_passengers) - self.last_completion_count
-        reward += new_completions * 10.0
+        reward += new_completions * 1.0  # Reduced from 10.0
         
-        # Penalty for waiting passengers
+        # Penalty for waiting passengers (scaled)
         total_waiting = sum(len(q) for q in self.building.active_passengers.values())
-        reward -= total_waiting * 0.1
+        reward -= total_waiting * 0.01  # Reduced from 0.1
 
         self.last_completion_count = len(self.building.completed_passengers)
-        return reward
+        
+        # Clip reward to prevent extremes
+        return np.clip(reward, -10.0, 10.0)
 
     def _calculate_complex_reward(self) -> float:
-        """A more complex reward considering waiting time, travel time, and energy."""
+        """A more complex reward with proper scaling."""
         reward = 0.0
         state = self.building.get_state()
         
-        # 1. Penalty for waiting passengers (most important)
-        total_waiting = sum(floor['waiting_up'] + floor['waiting_down'] 
-                           for floor in state['floors'].values())
-        reward -= total_waiting * 0.5
+        # 1. Penalty for total waiting (properly scaled)
+        total_waiting = sum(len(q) for q in self.building.active_passengers.values())
+        reward -= total_waiting * 0.02
         
         # 2. Reward for completed passengers
         new_completions = len(self.building.completed_passengers) - self.last_completion_count
-        reward += new_completions * 2.0
+        reward += new_completions * 2.0  # Reduced from 20.0
         
-        # 3. Reward for efficient service (low travel time)
+        # 3. Penalty for long travel times (only if we have completions)
         if new_completions > 0:
             recent_passengers = self.building.completed_passengers[-new_completions:]
             travel_times = [p.total_time for p in recent_passengers if p.total_time is not None]
             if travel_times:
                 avg_travel_time = np.mean(travel_times)
-                # Reward decreases as travel time increases
-                reward += max(0, 20 - avg_travel_time) * 0.1
+                # Small penalty that scales with travel time
+                reward -= min(avg_travel_time / 100.0, 1.0)
         
-        # 4. Small penalty for elevator movement (energy cost)
-        for elevator in self.building.elevators:
-            if elevator.is_moving():
-                reward -= 0.05
+        # 4. Penalties for inefficient actions (reduced magnitudes)
+        for i, elevator in enumerate(self.building.elevators):
+            is_moving = elevator.is_moving()
+            is_empty = len(elevator.passengers) == 0
+            has_calls = any(elevator.internal_buttons) or any(self.building.get_calls_for_elevator(i))
+            
+            if is_moving and is_empty and not has_calls:
+                reward -= 0.1  # Reduced from 1.0
+
+            if getattr(elevator, 'last_stop_was_unnecessary', False):
+                reward -= 0.5  # Reduced from 5.0
+                elevator.last_stop_was_unnecessary = False
         
-        # 5. Bonus for keeping elevators distributed
+        # 5. Small bonus for distribution
         elevator_positions = [elevator.current_floor for elevator in self.building.elevators]
         position_std = np.std(elevator_positions)
-        reward += position_std * 0.1  # Reward for spread out elevators
+        reward += position_std * 0.01  # Reduced from 0.1
         
         self.last_completion_count = len(self.building.completed_passengers)
-        return reward
-
+        
+        # Clip reward to prevent extremes
+        return np.clip(reward, -10.0, 10.0)
+    
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None) -> Tuple[np.ndarray, Dict]:
         """Reset the environment for a new episode"""
         super().reset(seed=seed)
@@ -353,12 +401,18 @@ class ElevatorEnv(gym.Env):
     def _process_rl_action(self, action: np.ndarray):
         """Assigns the target floor from the action to each idle elevator."""
         if self.action_type == 'continuous':
-            # Scale continuous actions from [-1, 1] to [0, num_floors-1]
-            action = (action + 1) / 2 * (self.num_floors - 1)
+            # Scale continuous actions from [-1, 1] to [0, num_floors]
+            # The max value (num_floors) will represent the 'idle' action
+            action = (action + 1) / 2 * self.num_floors
             action = np.round(action).astype(int)
 
         for i, target_floor in enumerate(action):
             elevator = self.building.elevators[i]
+            
+            # Action is to stay idle
+            if target_floor == self.num_floors:
+                continue # Do nothing for this elevator
+
             # Only assign a new target if the elevator is idle
             # This prevents interrupting an elevator that is already servicing requests
             if elevator.is_idle() and not elevator.target_floors:

@@ -133,7 +133,7 @@ class ElevatorGUI:
             self.model = None
             return
         
-        model_path = f"models/{model_name}_detailed_complex_continuous/{model_name}_detailed_complex_continuous_model.zip"
+        model_path = f"models/{model_name}_detailed_simple_discrete/{model_name}_detailed_simple_discrete_model.zip"
         if not os.path.exists(model_path):
             print(f"Model file not found: {model_path}")
             return
@@ -145,9 +145,9 @@ class ElevatorGUI:
         else:
             env_class = ElevatorEnv
         self.env = env_class(
-            observation_type="detailed",
-            reward_type="complex",
-            action_type="continuous",
+            observation_type="detailed",  # simple/detailed
+            reward_type="simple",  # simple/complex
+            action_type="discrete",  # discrete/continuous
             num_floors=self.num_floors,
             num_elevators=self.num_elevators,
             verbose=0

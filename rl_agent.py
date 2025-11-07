@@ -71,12 +71,15 @@ def train_rl_agent(model_name: str, observation_type: str, reward_type: str,
             "batch_size": 64,
             "n_epochs": 10,
             "gamma": 0.99,
+            "clip_range": 0.2,
+            "clip_range_vf": None,
         })
     elif model_name == "A2C":
         model_kwargs.update({
             "learning_rate": 3e-4,
             "n_steps": 10,
             "gamma": 0.99,
+            "max_grad_norm": 0.5,
         })
     elif model_name == "DQN":
         model_kwargs.update({
@@ -88,6 +91,7 @@ def train_rl_agent(model_name: str, observation_type: str, reward_type: str,
             "train_freq": 4,
             "gradient_steps": 1,
             "target_update_interval": 1000,
+            "max_grad_norm": 10,
         })
     elif model_name in ["SAC", "TD3", "DDPG"]:
         # Action noise is often useful for exploration in continuous action spaces
@@ -270,7 +274,8 @@ if __name__ == "__main__":
                         with open(results_file, "w") as f:
                             json.dump(all_results, f, indent=4)
                     except Exception as e:
-                        print(f"Error in {keys}: {e}")
+                        # print(f"Error in {keys}: {e}")
+                        raise e
 
     # === Final Summary ===
     with open(results_file, "w") as f:

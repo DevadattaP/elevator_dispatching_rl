@@ -39,6 +39,9 @@ class Elevator:
         
         # INTERNAL BUTTON PANEL
         self.internal_buttons = [False] * num_floors
+        
+        # For reward calculation
+        self.last_stop_was_unnecessary = False
     
     def set_speed_multiplier(self, speed_multiplier: float):
         """Update speed multiplier and recalculate all timing parameters"""
@@ -105,6 +108,9 @@ class Elevator:
     def step(self, building, time_step=1.0/60.0):
         self.state_timer += time_step*self.speed_multiplier
         
+        passengers_boarded_this_step = 0
+        passengers_alighted_this_step = 0
+
         if self.state == ElevatorState.MOVING_UP:
             self._move_with_physics(building, time_step, direction=1)
         elif self.state == ElevatorState.MOVING_DOWN:
@@ -114,7 +120,7 @@ class Elevator:
                 self.state = ElevatorState.DOOR_OPEN
                 self.state_timer = 0
                 # Call the door opened handler
-                self._on_doors_opened(building)
+                passengers_alighted_this_step = self._on_doors_opened(building)
         elif self.state == ElevatorState.DOOR_OPEN:
             # Periodic boarding checks
             check_interval = 0.3
@@ -122,7 +128,7 @@ class Elevator:
             previous_check = int((self.state_timer - time_step) / check_interval)
             
             if current_check > previous_check:
-                self._process_passenger_boarding_at_stop(building)
+                passengers_boarded_this_step += self._process_passenger_boarding_at_stop(building)
             
             if self.state_timer >= self.door_open_time:
                 self.state = ElevatorState.DOOR_CLOSING
@@ -130,11 +136,13 @@ class Elevator:
                 if self.verbose:
                     print(f"Elevator {self.id} doors closing at floor {self.current_floor}")
                 # Final boarding check before closing
-                self._process_passenger_boarding_at_stop(building)
+                passengers_boarded_this_step += self._process_passenger_boarding_at_stop(building)
         elif self.state == ElevatorState.DOOR_CLOSING:
             if self.state_timer >= self.door_operation_time:
                 self._choose_next_action(building)
-    
+        
+        return passengers_boarded_this_step, passengers_alighted_this_step
+
     def _on_doors_opened(self, building):
         """Called when doors are fully open - handle passenger exchange"""
         if self.verbose:
@@ -148,6 +156,8 @@ class Elevator:
         
         # Update direction after passenger exchange (may have new targets from boarding)
         self._update_direction_based_on_targets()
+        
+        return unloaded_count
     
     def _move_with_physics(self, building, time_step, direction):
         target_floor = self._get_next_target_floor()
@@ -344,10 +354,11 @@ class Elevator:
         """Process passenger boarding when elevator stops at a floor - FIXED VERSION"""
         current_floor = self.current_floor
         
+        boarded_count = 0
         if (current_floor in building.active_passengers and 
             building.active_passengers[current_floor]):
             
-            # FIX: Use the building's boarding logic which now considers intended direction
+            # Use the building's boarding logic which now considers intended direction
             boarded_count = building.board_passengers_to_elevator(
                 self.id, current_floor, 'any', self.capacity  # 'any' lets building determine compatibility
             )
@@ -359,8 +370,10 @@ class Elevator:
                 # After boarding, re-sort targets since we may have new internal calls
                 self._sort_target_floors()
                 # Update direction based on new targets
-                self._update_direction_based_on_targets()
-    
+                self.direction = self._update_direction_based_on_targets()
+        
+        return boarded_count
+
     def _choose_next_action(self, building):
         """Choose next action after door closing"""
         # Re-check if we have targets after door closing
