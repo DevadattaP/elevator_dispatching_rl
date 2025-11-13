@@ -3,6 +3,8 @@ from tkinter import ttk
 import threading
 import time
 import os
+
+import numpy as np
 from building import Building
 from utils.enums import ElevatorState
 from graphs import GraphWindow
@@ -127,44 +129,241 @@ class ElevatorGUI:
         self.setup_elevator_panels(self.right_frame)
 
     def load_agent_model(self):
-        """Load a pre-trained RL model for the selected agent."""
+        """Load pre-trained RL models with exact training configurations."""
         model_name = self.agent_type.get()
         if model_name == "rule_based":
             self.model = None
+            # Create environment for rule-based system
+            from elevator_env import ElevatorEnv
+            self.env = ElevatorEnv(
+                num_floors=self.num_floors,
+                num_elevators=self.num_elevators,
+                observation_type="simple",
+                reward_type="simple", 
+                action_type="discrete",
+                traffic_pattern="mixed",
+                use_smdp=False,
+                verbose=0
+            )
+            self.building = self.env.building
             return
         
-        model_path = f"models/{model_name}_detailed_simple_discrete/{model_name}_detailed_simple_discrete_model.zip"
+        # Model path mapping with exact training configurations
+        model_configs = {
+            "DQN": {
+                "path": "./models/DQN_d3qn_enhanced_squared_combinatorial_all_in_one/DQN_d3qn_enhanced_squared_combinatorial_all_in_one_model.zip",
+                "config": {
+                    "env_wrapper": "d3qn",
+                    "observation_type": "enhanced",  # Auto-set by d3qn wrapper
+                    "reward_type": "squared",        # Auto-set by d3qn wrapper  
+                    "action_type": "combinatorial",
+                    "traffic_pattern": "all_in_one",
+                    "use_smdp": False
+                }
+            },
+            "A2C": {
+                "path": "./models/A2C_default_detailed_fairness_discrete_mixed/A2C_default_detailed_fairness_discrete_mixed_model.zip", 
+                "config": {
+                    "env_wrapper": "default",
+                    "observation_type": "detailed",
+                    "reward_type": "fairness",
+                    "action_type": "discrete", 
+                    "traffic_pattern": "mixed",
+                    "use_smdp": False
+                }
+            },
+            "SAC": {
+                "path": "./models/SAC_default_enhanced_complex_continuous_mixed/SAC_default_enhanced_complex_continuous_mixed_model.zip",
+                "config": {
+                    "env_wrapper": "default", 
+                    "observation_type": "enhanced",
+                    "reward_type": "complex",
+                    "action_type": "continuous",
+                    "traffic_pattern": "mixed",
+                    "use_smdp": False
+                }
+            },
+            "PPO": {
+                "path": "./models/PPO_smdp_enhanced_complex_discrete_mixed_smdp/PPO_smdp_enhanced_complex_discrete_mixed_smdp_model.zip",
+                "config": {
+                    "env_wrapper": "smdp",
+                    "observation_type": "enhanced",  # Auto-set by smdp wrapper
+                    "reward_type": "complex",
+                    "action_type": "discrete",
+                    "traffic_pattern": "mixed", 
+                    "use_smdp": True  # Auto-set by smdp wrapper
+                }
+            }
+        }
+        
+        if model_name not in model_configs:
+            print(f"No configuration found for {model_name}")
+            # Fallback to default environment
+            from elevator_env import ElevatorEnv
+            self.env = ElevatorEnv(
+                num_floors=self.num_floors,
+                num_elevators=self.num_elevators,
+                observation_type="simple",
+                reward_type="simple",
+                action_type="discrete",
+                verbose=0
+            )
+            self.building = self.env.building
+            return
+        
+        config = model_configs[model_name]
+        model_path = config["path"]
+        env_config = config["config"]
+        
         if not os.path.exists(model_path):
             print(f"Model file not found: {model_path}")
+            # Fallback to default environment
+            from elevator_env import ElevatorEnv
+            self.env = ElevatorEnv(
+                num_floors=self.num_floors,
+                num_elevators=self.num_elevators, 
+                observation_type="simple",
+                reward_type="simple",
+                action_type="discrete",
+                verbose=0
+            )
+            self.building = self.env.building
             return
         
-        # Create a gym-like wrapper for your building environment
-        from elevator_env import ElevatorEnv, FlattenMultiDiscreteWrapper
-        if model_name == "DQN":
-            env_class = FlattenMultiDiscreteWrapper
-        else:
-            env_class = ElevatorEnv
-        self.env = env_class(
-            observation_type="detailed",  # simple/detailed
-            reward_type="simple",  # simple/complex
-            action_type="discrete",  # discrete/continuous
-            num_floors=self.num_floors,
-            num_elevators=self.num_elevators,
-            verbose=0
-        )
+        print(f"Loading {model_name} from: {model_path}")
         
+        # Import required modules
+        from elevator_env import ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, DiscreteCombinatorialWrapper, DiscreteAssignmentWrapper, MultiDiscreteWrapper
+        from stable_baselines3 import PPO, A2C, DQN, SAC, TD3, DDPG
+        
+        # Choose environment wrapper
+        wrapper_classes = {
+            "default": ElevatorEnv,
+            "d3qn": D3QNWrapper, 
+            "smdp": SMDPWrapper,
+            "traffic_aware": TrafficAwareWrapper
+        }
+        
+        env_class = wrapper_classes[env_config['env_wrapper']]
+        
+        # Environment parameters - match training exactly
+        env_kwargs = {
+            'num_floors': self.num_floors,
+            'num_elevators': self.num_elevators,
+            'episode_length': 3600,
+            'headless': True,  # GUI handles rendering
+            'passenger_generation_rate': 1.0,
+            'observation_type': env_config['observation_type'],
+            'reward_type': env_config['reward_type'],
+            'action_type': env_config['action_type'], 
+            'traffic_pattern': env_config['traffic_pattern'],
+            'use_smdp': env_config['use_smdp'],
+            'verbose': 0
+        }
+        
+        # Apply wrapper-specific overrides (same as training)
+        if env_config['env_wrapper'] == "d3qn":
+            # D3QN wrapper auto-sets observation_type and reward_type
+            env_kwargs.pop('observation_type', None)
+            env_kwargs.pop('reward_type', None)
+        elif env_config['env_wrapper'] == "smdp":
+            # SMDP wrapper auto-sets use_smdp and observation_type
+            env_kwargs['use_smdp'] = True
+            env_kwargs['observation_type'] = 'enhanced'
+        elif env_config['env_wrapper'] == "traffic_aware":
+            # Traffic-aware wrapper auto-sets traffic_pattern and observation_type  
+            env_kwargs['traffic_pattern'] = 'all_in_one'
+            env_kwargs['observation_type'] = 'enhanced'
+        
+        # Create base environment first (for building access)
+        base_env = env_class(**env_kwargs)
+        self.base_env = base_env
+        
+        # Apply action space wrappers for DQN (same as training)
+        if model_name == "DQN":
+            if env_config['action_type'] == "combinatorial":
+                self.env = DiscreteCombinatorialWrapper(base_env)
+            elif env_config['action_type'] == "assignment":
+                self.env = DiscreteAssignmentWrapper(base_env) 
+            elif env_config['action_type'] == "discrete":
+                self.env = MultiDiscreteWrapper(base_env)
+            else:
+                self.env = base_env
+        else:
+            self.env = base_env
+        
+        # Store building reference for GUI access
+        self.building = base_env.building
+        
+        # Model mapping
         MODEL_MAP = {
             "PPO": PPO,
-            "A2C": A2C,
+            "A2C": A2C, 
             "DQN": DQN,
             "SAC": SAC,
             "TD3": TD3,
             "DDPG": DDPG
         }
         
+        # Load model with appropriate settings
         ModelClass = MODEL_MAP[model_name]
-        self.model = ModelClass.load(model_path)
+        
+        try:
+            # Load with environment for proper setup
+            self.model = ModelClass.load(model_path, env=self.env)
+            
+            print(f"Successfully loaded {model_name}")
+            print(f"   Configuration:")
+            print(f"   - Wrapper: {env_config['env_wrapper']}")
+            print(f"   - Observation: {env_config['observation_type']}")
+            print(f"   - Reward: {env_config['reward_type']}") 
+            print(f"   - Action: {env_config['action_type']}")
+            print(f"   - Traffic: {env_config['traffic_pattern']}")
+            print(f"   - SMDP: {env_config['use_smdp']}")
+            
+        except Exception as e:
+            print(f"Error loading {model_name}: {e}")
+            print("Trying to load without environment...")
+            try:
+                self.model = ModelClass.load(model_path)
+                print("Model loaded without environment (may have prediction issues)")
+            except Exception as e2:
+                print(f"Failed to load model: {e2}")
+                self.model = None
+                
+                # Still set up environment for rule-based fallback
+                from elevator_env import ElevatorEnv
+                self.env = ElevatorEnv(
+                    num_floors=self.num_floors,
+                    num_elevators=self.num_elevators,
+                    observation_type="simple", 
+                    reward_type="simple",
+                    action_type="discrete",
+                    verbose=0
+                )
+                self.building = self.env.building
 
+    def _process_dqn_action(self, action, converter_type):
+        """Convert DQN discrete action back to original action space."""
+        if converter_type == "combinatorial":
+            # Convert discrete action (0-15) to binary vector for 4 elevators
+            binary_action = []
+            for i in range(self.num_elevators):
+                binary_action.append((action >> i) & 1)
+            return np.array(binary_action, dtype=np.int8)
+            
+        elif converter_type == "assignment":
+            # Assignment action is already in correct format (0-4 for 4 elevators + no assignment)
+            return action
+            
+        elif converter_type == "discrete":
+            # Convert flat discrete action back to multi-discrete
+            actions = np.unravel_index(action, [self.num_floors + 1] * self.num_elevators)
+            return np.array(actions)
+            
+        else:
+            return action
+      
     def open_graph_window(self):
         """Open or focus the graph window"""
         if self.graph_window is None or not self.graph_window.root.winfo_exists():
@@ -408,7 +607,12 @@ class ElevatorGUI:
             else:
                 # RL-based control using Gym interface
                 action, _ = self.model.predict(obs, deterministic=True)
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                 # Handle DQN action conversion if needed
+                if hasattr(self, 'action_converter') and self.action_converter:
+                    processed_action = self._process_dqn_action(action, self.action_converter)
+                else:
+                    processed_action = action
+                obs, reward, terminated, truncated, info = self.env.step(processed_action)
                 if terminated or truncated:
                     self.env.reset()
                 self.building = self.env.building  # Sync GUI with env
