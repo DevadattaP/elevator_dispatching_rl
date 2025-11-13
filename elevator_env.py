@@ -594,6 +594,10 @@ class ElevatorEnv(gym.Env):
 
     def _process_rl_action(self, action: np.ndarray):
         """Process action based on action type."""
+        # Debug print to see what action we're receiving
+        if self.verbose > 1:
+            print(f"Processing action: {action}, type: {type(action)}, shape: {getattr(action, 'shape', 'No shape')}")
+        
         if self.action_type == 'continuous':
             action = (action + 1) / 2 * self.num_floors
             action = np.round(action).astype(int)
@@ -610,20 +614,95 @@ class ElevatorEnv(gym.Env):
                         elevator.assign_target(destination_floor)
                         
         elif self.action_type == 'combinatorial':
-            # Like Vaartjes et al. - assign multiple elevators to serve calls
-            # This would need integration with your hall call system
-            assigned_elevators = [i for i, assigned in enumerate(action) if assigned]
-            if assigned_elevators and hasattr(self, 'current_hall_call'):
-                # Assign current hall call to selected elevators
-                for elevator_id in assigned_elevators:
-                    elevator = self.building.elevators[elevator_id]
-                    elevator.assign_target(self.current_hall_call)
-                    
+            # FIX: Properly handle different action formats
+            assigned_elevators = []
+            
+            # Case 1: Action is a single integer (from DQN discrete space)
+            if np.isscalar(action):
+                action_int = int(action)
+                assigned_elevators = [i for i in range(self.num_elevators) if (action_int >> i) & 1]
+            
+            # Case 2: Action is a numpy array with single value
+            elif isinstance(action, np.ndarray) and action.size == 1:
+                action_int = int(action.item())
+                assigned_elevators = [i for i in range(self.num_elevators) if (action_int >> i) & 1]
+            
+            # Case 3: Action is a numpy array with multiple values (binary vector)
+            elif isinstance(action, np.ndarray) and action.size > 1:
+                # Convert to list and check each element individually
+                action_list = action.tolist()
+                assigned_elevators = [i for i, assigned in enumerate(action_list) if assigned]
+            
+            # Case 4: Action is already a list
+            elif isinstance(action, (list, tuple)):
+                assigned_elevators = [i for i, assigned in enumerate(action) if assigned]
+            
+            else:
+                if self.verbose > 0:
+                    print(f"Warning: Unhandled action format: {type(action)}")
+                return
+            
+            if self.verbose > 1:
+                print(f"Combinatorial action - Assigned elevators: {assigned_elevators}")
+            
+            # Assign elevators to serve pending hall calls
+            pending_calls = self._get_pending_hall_calls()
+            if assigned_elevators and pending_calls:
+                for call_floor, call_direction in pending_calls:
+                    for elevator_id in assigned_elevators:
+                        if elevator_id < len(self.building.elevators):
+                            elevator = self.building.elevators[elevator_id]
+                            if len(elevator.passengers) < elevator.capacity:
+                                elevator.assign_target(call_floor)
+                                if self.verbose > 1:
+                                    print(f"Assigned elevator {elevator_id} to floor {call_floor}")
+                                break  # Assign each call to one elevator
+                        
         elif self.action_type == 'assignment':
-            # Assign new hall call to specific elevator
-            if action < self.num_elevators and hasattr(self, 'current_hall_call'):
-                elevator = self.building.elevators[action]
-                elevator.assign_target(self.current_hall_call)
+            # FIX: Handle different action formats for assignment
+            if np.isscalar(action):
+                elevator_id = int(action)
+            elif isinstance(action, np.ndarray):
+                elevator_id = int(action.item()) if action.size == 1 else 0
+            else:
+                elevator_id = 0
+                
+            if elevator_id < self.num_elevators:
+                pending_calls = self._get_pending_hall_calls()
+                if pending_calls:
+                    call_floor, call_direction = pending_calls[0]
+                    elevator = self.building.elevators[elevator_id]
+                    if len(elevator.passengers) < elevator.capacity:
+                        elevator.assign_target(call_floor)
+                        if self.verbose > 1:
+                            print(f"Assigned elevator {elevator_id} to floor {call_floor}")
+
+    def _get_pending_hall_calls(self):
+        """Get list of pending hall calls that need assignment."""
+        pending_calls = []
+        
+        for floor in range(self.num_floors):
+            # Check waiting passengers on this floor
+            waiting_passengers = self.building.active_passengers.get(floor, [])
+            if waiting_passengers:
+                # Group by direction
+                up_passengers = [p for p in waiting_passengers if p.direction == 'up']
+                down_passengers = [p for p in waiting_passengers if p.direction == 'down']
+                
+                # Check if elevators are already assigned to this floor
+                floor_has_elevator_assigned = False
+                for elevator in self.building.elevators:
+                    if floor in elevator.target_floors:
+                        floor_has_elevator_assigned = True
+                        break
+                
+                if not floor_has_elevator_assigned:
+                    if up_passengers and floor < self.num_floors - 1:  # Can go up
+                        pending_calls.append((floor, 'up'))
+                    if down_passengers and floor > 0:  # Can go down
+                        pending_calls.append((floor, 'down'))
+        
+        return pending_calls
 
     def _add_scheduled_passengers(self):
         """Add passengers scheduled for current time."""
@@ -690,6 +769,11 @@ class D3QNWrapper(ElevatorEnv):
         kwargs['observation_type'] = 'enhanced'
         kwargs['reward_type'] = 'squared'  # Like Crites & Barto
         super().__init__(**kwargs)
+    
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        """Reset the environment and ensure all attributes are initialized."""
+        obs, info = super().reset(seed=seed, options=options)
+        return obs, info
 
 class SMDPWrapper(ElevatorEnv):
     """Wrapper for Semi-Markov Decision Process training."""
@@ -697,6 +781,11 @@ class SMDPWrapper(ElevatorEnv):
         kwargs['use_smdp'] = True
         kwargs['observation_type'] = 'enhanced'
         super().__init__(**kwargs)
+    
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        """Reset the environment and ensure all attributes are initialized."""
+        obs, info = super().reset(seed=seed, options=options)
+        return obs, info
 
 class TrafficAwareWrapper(ElevatorEnv):
     """Wrapper for traffic pattern-aware training (like Wan et al.)."""
@@ -704,6 +793,11 @@ class TrafficAwareWrapper(ElevatorEnv):
         kwargs['traffic_pattern'] = 'all_in_one'
         kwargs['observation_type'] = 'enhanced'
         super().__init__(**kwargs)
+    
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        """Reset the environment and ensure all attributes are initialized."""
+        obs, info = super().reset(seed=seed, options=options)
+        return obs, info
 
 # ===== Custom Wrappers for Action Space Compatibility =====
 class DiscreteCombinatorialWrapper(gym.Wrapper):
@@ -715,12 +809,22 @@ class DiscreteCombinatorialWrapper(gym.Wrapper):
         self.action_space = spaces.Discrete(2 ** self.n_elevators)
         self.building = env.building
         
+    def reset(self, seed=None, options=None):
+        """Reset the wrapped environment."""
+        obs, info = self.env.reset(seed=seed, options=options)
+        return obs, info
+        
     def step(self, action):
         # Convert discrete action to binary vector
+        # Ensure action is a scalar integer
+        if isinstance(action, np.ndarray):
+            action = action.item() if action.size == 1 else action[0]
+        
         binary_action = []
         for i in range(self.n_elevators):
             binary_action.append((action >> i) & 1)
         binary_action = np.array(binary_action, dtype=np.int8)
+        
         return self.env.step(binary_action)
 
 class DiscreteAssignmentWrapper(gym.Wrapper):
@@ -731,6 +835,11 @@ class DiscreteAssignmentWrapper(gym.Wrapper):
         # Assignment action space: which elevator to assign (+1 for no assignment)
         self.action_space = spaces.Discrete(self.n_elevators + 1)
         self.building = env.building
+        
+    def reset(self, seed=None, options=None):
+        """Reset the wrapped environment."""
+        obs, info = self.env.reset(seed=seed, options=options)
+        return obs, info
         
     def step(self, action):
         # Action is already in the right format for assignment
@@ -743,6 +852,11 @@ class MultiDiscreteWrapper(gym.Wrapper):
         self.original_action_space = env.action_space
         self.action_space = spaces.Discrete(np.prod(self.original_action_space.nvec))
         self.building = env.building
+        
+    def reset(self, seed=None, options=None):
+        """Reset the wrapped environment."""
+        obs, info = self.env.reset(seed=seed, options=options)
+        return obs, info
         
     def step(self, action):
         # Convert flat action to multi-discrete

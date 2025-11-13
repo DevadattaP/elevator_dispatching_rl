@@ -321,6 +321,22 @@ class ElevatorGUI:
             print(f"   - Traffic: {env_config['traffic_pattern']}")
             print(f"   - SMDP: {env_config['use_smdp']}")
             
+            if model_name == "DQN":
+                # Set action converter for proper DQN action processing
+                if env_config['action_type'] == "combinatorial":
+                    self.action_converter = "combinatorial"
+                    print(f"DQN configured with combinatorial action converter")
+                elif env_config['action_type'] == "assignment":
+                    self.action_converter = "assignment"
+                    print(f"DQN configured with assignment action converter")
+                elif env_config['action_type'] == "discrete":
+                    self.action_converter = "discrete" 
+                    print(f"DQN configured with discrete action converter")
+                else:
+                    self.action_converter = None
+                    print(f"DQN with no action converter (action_type: {env_config['action_type']})")
+            else:
+                self.action_converter = None
         except Exception as e:
             print(f"Error loading {model_name}: {e}")
             print("Trying to load without environment...")
@@ -598,8 +614,12 @@ class ElevatorGUI:
     
     def run_simulation(self):
         if self.model is not None:
+            print(f"Starting RL simulation with {self.agent_type.get()} agent")
+            # Make sure environment is properly reset
             obs, info = self.env.reset()
             terminated, truncated = False, False
+            
+        step_count = 0
         while self.is_running:
             if self.model is None:
                 # Rule-based control
@@ -607,19 +627,31 @@ class ElevatorGUI:
             else:
                 # RL-based control using Gym interface
                 action, _ = self.model.predict(obs, deterministic=True)
-                 # Handle DQN action conversion if needed
+                
+                # if step_count % 100 == 0:  # Print every 100 steps for debugging
+                #     print(f"Step {step_count}: Action={action}, Agent={self.agent_type.get()}")
+                
+                # Handle DQN action conversion
                 if hasattr(self, 'action_converter') and self.action_converter:
                     processed_action = self._process_dqn_action(action, self.action_converter)
+                    # if step_count % 100 == 0:
+                    #     print(f"  Converted action: {processed_action}")
                 else:
                     processed_action = action
+                    
                 obs, reward, terminated, truncated, info = self.env.step(processed_action)
+                
                 if terminated or truncated:
-                    self.env.reset()
-                self.building = self.env.building  # Sync GUI with env
-
+                    print("Episode terminated, resetting environment")
+                    obs, info = self.env.reset()
+                    step_count = 0
+                    
+                self.building = self.env.building
+                step_count += 1
+                
             self.root.after(0, self.update_display)
             time.sleep(0.016)
-            
+           
     def draw_passengers(self):
         """Draw passenger indicators on floors and in elevators"""
         canvas = self.canvas
