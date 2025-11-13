@@ -41,12 +41,38 @@ class DQNNetwork(nn.Module):
         x = torch.relu(self.fc3(x))
         return self.fc4(x)
 
+# class DQNNetwork(nn.Module):
+#     def __init__(self, input_dim, output_dim):
+#         super(DQNNetwork, self).__init__()
+#         # Larger network to handle complex state representation
+#         self.fc1 = nn.Linear(input_dim, 256)
+#         self.fc2 = nn.Linear(256, 256)
+#         self.fc3 = nn.Linear(256, 128)
+#         self.fc4 = nn.Linear(128, 64)
+#         self.fc5 = nn.Linear(64, output_dim)
+        
+#     def forward(self, x):
+#         x = torch.relu(self.fc1(x))
+#         x = torch.relu(self.fc2(x))
+#         x = torch.relu(self.fc3(x))
+#         x = torch.relu(self.fc4(x))
+#         return self.fc5(x)
+
 class ElevatorDQN:
-    def __init__(self, env, replay_size=10000, batch_size=32, gamma=0.99, 
-                 sync_after=100, lr=0.001, resume=False):
+    def __init__(self, env, replay_size=50000, batch_size=64, gamma=0.99, 
+                 sync_after=1000, lr=0.0001, resume=False, device=None):
         self.env = env
         self.obs_dim = env.observation_space.shape[0]
-        self.act_dim = env.action_space.n
+        
+        # Handle different action spaces from your environment
+        if hasattr(env.action_space, 'n'):
+            self.act_dim = env.action_space.n
+        elif hasattr(env.action_space, 'shape'):
+            # For continuous or multi-discrete, we need to adapt
+            self.act_dim = env.action_space.shape[0] if hasattr(env.action_space, 'shape') else env.action_space.nvec.prod()
+        else:
+            raise ValueError(f"Unsupported action space: {env.action_space}")
+            
         self.replay_buffer = ReplayBuffer(replay_size)
         self.batch_size = batch_size
         self.gamma = gamma
@@ -54,90 +80,110 @@ class ElevatorDQN:
         self.training_step = 0
         
         # Device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Networks
+        # Network
         self.dqn_net = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
         self.dqn_target_net = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
         
         if resume:
             try:
                 self.dqn_net.load_state_dict(torch.load('./models/elevator_dqn.pth', map_location=self.device))
-                print("Loaded existing model")
+                print("Loaded existing DQN model")
             except FileNotFoundError:
-                print("No existing model found, starting fresh")
+                print("No existing DQN model found, starting fresh")
         
         self.dqn_target_net.load_state_dict(self.dqn_net.state_dict())
         self.dqn_target_net.eval()
         
         # Optimizer
-        self.optimizer = optim.Adam(self.dqn_net.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.dqn_net.parameters(), lr=lr, weight_decay=1e-5)
+        
+        # Tracking
+        self.losses = []
+        self.all_rewards = []
     
     def learn(self, timesteps, save_path='./models/elevator_dqn.pth'):
-        """Train the elevator DQN agent"""
+        """Train the DQN agent with your advanced environment"""
         all_rewards = []
         episode_rewards = []
         
-        obs = self.env.reset()
+        obs, info = self.env.reset()
         
         for timestep in range(1, timesteps + 1):
             epsilon = self.epsilon_by_timestep(timestep)
             action = self.predict(obs, epsilon)
             
-            next_obs, reward, terminated, _, _ = self.env.step(action)
+            next_obs, reward, terminated, truncated, info = self.env.step(action)
             self.replay_buffer.put(obs, action, reward, next_obs, terminated)
             
             obs = next_obs
             episode_rewards.append(reward)
             
-            if terminated:
+            if terminated or truncated:
                 total_episode_reward = sum(episode_rewards)
                 all_rewards.append(total_episode_reward)
-                obs = self.env.reset()
+                obs, info = self.env.reset()
                 episode_rewards = []
                 
                 if len(all_rewards) % 10 == 0:
-                    avg_reward = np.mean(all_rewards[-10:])
-                    print(f"Episode {len(all_rewards)}, Avg Reward: {avg_reward:.2f}, Epsilon: {epsilon:.3f}")
+                    avg_reward = np.mean(all_rewards[-5:])
+                    completed_passengers = info.get("passengers_completed", 0)
+                    avg_wait = info.get("average_wait_time", 0)
+                    print(f"DQN - Episode {len(all_rewards)}, "
+                          f"Avg Reward: {avg_reward:.2f}, "
+                          f"Completed: {completed_passengers}, "
+                          f"Avg Wait: {avg_wait:.1f}s, "
+                          f"Epsilon: {epsilon:.3f}")
             
             # Training
             if len(self.replay_buffer) > self.batch_size:
                 loss = self.compute_msbe_loss()
                 self.optimizer.zero_grad()
                 loss.backward()
-                # Gradient clipping for stability
                 torch.nn.utils.clip_grad_norm_(self.dqn_net.parameters(), 1.0)
                 self.optimizer.step()
                 self.training_step += 1
+                self.losses.append(loss.item())
             
             # Sync target network
             if self.training_step > 0 and self.training_step % self.sync_after == 0:
                 self.dqn_target_net.load_state_dict(self.dqn_net.state_dict())
             
-            # Save model
-            if timestep % 1000 == 0:
+            # Save model periodically
+            if timestep % 5000 == 0:
                 torch.save(self.dqn_net.state_dict(), save_path)
-                if timestep % 5000 == 0:
-                    print(f"Saved model at step {timestep}")
+                print(f"Saved model at step {timestep}")
         
         # Final save
         torch.save(self.dqn_net.state_dict(), save_path)
-        print("Training completed!")
+        print("DQN Training completed!")
         
         return all_rewards
     
     def predict(self, state, epsilon=0.0):
-        """Predict the best action based on state"""
+        """Predict action based on state - handles different action spaces"""
         if random.random() < epsilon:
-            return random.randint(0, self.act_dim - 1)
+            # Random action based on action space type
+            if hasattr(self.env.action_space, 'n'):
+                return random.randint(0, self.act_dim - 1)
+            elif hasattr(self.env.action_space, 'nvec'):
+                return np.array([random.randint(0, n-1) for n in self.env.action_space.nvec])
+            else:
+                return self.env.action_space.sample()
         else:
             with torch.no_grad():
                 state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
                 q_values = self.dqn_net(state_tensor)
-                return q_values.argmax().item()
+                
+                if hasattr(self.env.action_space, 'n'):
+                    return q_values.argmax().item()
+                else:
+                    # For multi-discrete, return the action with highest Q-value
+                    return q_values.cpu().numpy().flatten()
     
     def compute_msbe_loss(self):
-        """Compute the MSBE loss"""
+        """Compute MSBE loss"""
         obs, actions, rewards, next_obs, dones = self.replay_buffer.get(self.batch_size)
         
         # Convert to tensors
@@ -160,7 +206,7 @@ class ElevatorDQN:
         loss = torch.nn.MSELoss()(current_q_values, target_q_values)
         return loss
     
-    def epsilon_by_timestep(self, timestep, epsilon_start=1.0, epsilon_final=0.01, frames_decay=20000):
+    def epsilon_by_timestep(self, timestep, epsilon_start=1.0, epsilon_final=0.01, frames_decay=50000):
         """Epsilon decay for elevator problem"""
         if timestep >= frames_decay:
             return epsilon_final
@@ -168,11 +214,17 @@ class ElevatorDQN:
             return epsilon_start - (epsilon_start - epsilon_final) * (timestep / frames_decay)
 
 class ElevatorDDQN:
-    def __init__(self, env, replay_size=10000, batch_size=32, gamma=0.99, 
-                 sync_after=100, lr=0.001, resume=False):
+    def __init__(self, env, replay_size=50000, batch_size=64, gamma=0.99, 
+                 sync_after=1000, lr=0.0001, resume=False, device=None):
         self.env = env
         self.obs_dim = env.observation_space.shape[0]
-        self.act_dim = env.action_space.n
+        
+        # Handle different action spaces
+        if hasattr(env.action_space, 'n'):
+            self.act_dim = env.action_space.n
+        else:
+            self.act_dim = env.action_space.shape[0] if hasattr(env.action_space, 'shape') else env.action_space.nvec.prod()
+            
         self.replay_buffer = ReplayBuffer(replay_size)
         self.batch_size = batch_size
         self.gamma = gamma
@@ -180,9 +232,9 @@ class ElevatorDDQN:
         self.training_step = 0
         
         # Device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Networks - DDQN uses online network for action selection, target for evaluation
+        # Networks for DDQN
         self.dqn_net = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
         self.dqn_target_net = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
         
@@ -197,38 +249,44 @@ class ElevatorDDQN:
         self.dqn_target_net.eval()
         
         # Optimizer
-        self.optimizer = optim.Adam(self.dqn_net.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.dqn_net.parameters(), lr=lr, weight_decay=1e-5)
         
         # Tracking
         self.losses = []
         self.all_rewards = []
     
-    def learn(self, timesteps, save_path='./models/elevator_ddqn.pth'):
-        """Train the elevator DDQN agent"""
+    def learn(self, timesteps, save_path='elevator_ddqn.pth'):
+        """Train the DDQN agent with your advanced environment"""
         all_rewards = []
         episode_rewards = []
         
-        obs = self.env.reset()
+        obs, info = self.env.reset()
         
         for timestep in range(1, timesteps + 1):
             epsilon = self.epsilon_by_timestep(timestep)
             action = self.predict(obs, epsilon)
             
-            next_obs, reward, terminated, _, _ = self.env.step(action)
+            next_obs, reward, terminated, truncated, info = self.env.step(action)
             self.replay_buffer.put(obs, action, reward, next_obs, terminated)
             
             obs = next_obs
             episode_rewards.append(reward)
             
-            if terminated:
+            if terminated or truncated:
                 total_episode_reward = sum(episode_rewards)
                 all_rewards.append(total_episode_reward)
-                obs = self.env.reset()
+                obs, info = self.env.reset()
                 episode_rewards = []
                 
                 if len(all_rewards) % 10 == 0:
-                    avg_reward = np.mean(all_rewards[-10:])
-                    print(f"DDQN - Episode {len(all_rewards)}, Avg Reward: {avg_reward:.2f}, Epsilon: {epsilon:.3f}")
+                    avg_reward = np.mean(all_rewards[-5:])
+                    completed_passengers = info.get("passengers_completed", 0)
+                    avg_wait = info.get("average_wait_time", 0)
+                    print(f"DDQN - Episode {len(all_rewards)}, "
+                          f"Avg Reward: {avg_reward:.2f}, "
+                          f"Completed: {completed_passengers}, "
+                          f"Avg Wait: {avg_wait:.1f}s, "
+                          f"Epsilon: {epsilon:.3f}")
             
             # Training
             if len(self.replay_buffer) > self.batch_size:
@@ -244,9 +302,10 @@ class ElevatorDDQN:
             if self.training_step > 0 and self.training_step % self.sync_after == 0:
                 self.dqn_target_net.load_state_dict(self.dqn_net.state_dict())
             
-            # Save model
-            if timestep % 1000 == 0:
+            # Save model periodically
+            if timestep % 5000 == 0:
                 torch.save(self.dqn_net.state_dict(), save_path)
+                print(f"Saved DDQN model at step {timestep}")
         
         # Final save
         torch.save(self.dqn_net.state_dict(), save_path)
@@ -255,17 +314,24 @@ class ElevatorDDQN:
         return all_rewards
     
     def predict(self, state, epsilon=0.0):
-        """Predict the best action based on state"""
+        """Predict action based on state"""
         if random.random() < epsilon:
-            return random.randint(0, self.act_dim - 1)
+            if hasattr(self.env.action_space, 'n'):
+                return random.randint(0, self.act_dim - 1)
+            else:
+                return self.env.action_space.sample()
         else:
             with torch.no_grad():
                 state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
                 q_values = self.dqn_net(state_tensor)
-                return q_values.argmax().item()
+                
+                if hasattr(self.env.action_space, 'n'):
+                    return q_values.argmax().item()
+                else:
+                    return q_values.cpu().numpy().flatten()
     
     def compute_ddqn_loss(self):
-        """Compute the Double DQN loss - key difference from DQN"""
+        """Compute Double DQN loss"""
         obs, actions, rewards, next_obs, dones = self.replay_buffer.get(self.batch_size)
         
         # Convert to tensors
@@ -278,11 +344,9 @@ class ElevatorDDQN:
         # Current Q values
         current_q_values = self.dqn_net(obs).gather(1, actions.unsqueeze(1)).squeeze(1)
         
-        # Double DQN: Use online network for action selection, target network for evaluation
+        # Double DQN: Action selection by online network, evaluation by target network
         with torch.no_grad():
-            # Action selection by online network
             next_actions = self.dqn_net(next_obs).argmax(1)
-            # Q-value evaluation by target network
             next_q_values = self.dqn_target_net(next_obs).gather(1, next_actions.unsqueeze(1)).squeeze(1)
             next_q_values[dones] = 0.0
             target_q_values = rewards + self.gamma * next_q_values
@@ -291,31 +355,38 @@ class ElevatorDDQN:
         loss = torch.nn.MSELoss()(current_q_values, target_q_values)
         return loss
     
-    def epsilon_by_timestep(self, timestep, epsilon_start=1.0, epsilon_final=0.01, frames_decay=20000):
-        """Epsilon decay for elevator problem"""
+    def epsilon_by_timestep(self, timestep, epsilon_start=1.0, epsilon_final=0.01, frames_decay=50000):
+        """Epsilon decay"""
         if timestep >= frames_decay:
             return epsilon_final
         else:
             return epsilon_start - (epsilon_start - epsilon_final) * (timestep / frames_decay)
 
 class ElevatorTDQN:
-    def __init__(self, env, replay_size=10000, batch_size=32, gamma=0.99, 
-                 sync_after1=100, sync_after2=500, lr=0.001, aggregator='min', resume=False):
+    def __init__(self, env, replay_size=50000, batch_size=64, gamma=0.99, 
+                 sync_after1=1000, sync_after2=5000, lr=0.0001, aggregator='min', 
+                 resume=False, device=None):
         self.env = env
         self.obs_dim = env.observation_space.shape[0]
-        self.act_dim = env.action_space.n
+        
+        # Handle different action spaces
+        if hasattr(env.action_space, 'n'):
+            self.act_dim = env.action_space.n
+        else:
+            self.act_dim = env.action_space.shape[0] if hasattr(env.action_space, 'shape') else env.action_space.nvec.prod()
+            
         self.replay_buffer = ReplayBuffer(replay_size)
         self.batch_size = batch_size
         self.gamma = gamma
         self.sync_after1 = sync_after1  # Sync frequency for target1
-        self.sync_after2 = sync_after2  # Sync frequency for target2 (staggered)
-        self.aggregator = aggregator  # 'min' or 'mean'
+        self.sync_after2 = sync_after2  # Sync frequency for target2
+        self.aggregator = aggregator
         self.training_step = 0
         
         # Device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Three networks for Triple DQN
+        # Three networks for TDQN
         self.dqn_net = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
         self.dqn_target1 = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
         self.dqn_target2 = DQNNetwork(self.obs_dim, self.act_dim).to(self.device)
@@ -337,38 +408,44 @@ class ElevatorTDQN:
         self.dqn_target2.eval()
         
         # Optimizer
-        self.optimizer = optim.Adam(self.dqn_net.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.dqn_net.parameters(), lr=lr, weight_decay=1e-5)
         
         # Tracking
         self.losses = []
         self.all_rewards = []
     
     def learn(self, timesteps, save_path='./models/elevator_tdqn.pth'):
-        """Train the elevator Triple DQN agent"""
+        """Train the TDQN agent with your advanced environment"""
         all_rewards = []
         episode_rewards = []
         
-        obs = self.env.reset()
+        obs, info = self.env.reset()
         
         for timestep in range(1, timesteps + 1):
             epsilon = self.epsilon_by_timestep(timestep)
             action = self.predict(obs, epsilon)
             
-            next_obs, reward, terminated, _, _ = self.env.step(action)
+            next_obs, reward, terminated, truncated, info = self.env.step(action)
             self.replay_buffer.put(obs, action, reward, next_obs, terminated)
             
             obs = next_obs
             episode_rewards.append(reward)
             
-            if terminated:
+            if terminated or truncated:
                 total_episode_reward = sum(episode_rewards)
                 all_rewards.append(total_episode_reward)
-                obs = self.env.reset()
+                obs, info = self.env.reset()
                 episode_rewards = []
                 
                 if len(all_rewards) % 10 == 0:
-                    avg_reward = np.mean(all_rewards[-10:])
-                    print(f"TDQN - Episode {len(all_rewards)}, Avg Reward: {avg_reward:.2f}, Epsilon: {epsilon:.3f}")
+                    avg_reward = np.mean(all_rewards[-5:])
+                    completed_passengers = info.get("passengers_completed", 0)
+                    avg_wait = info.get("average_wait_time", 0)
+                    print(f"TDQN - Episode {len(all_rewards)}, "
+                          f"Avg Reward: {avg_reward:.2f}, "
+                          f"Completed: {completed_passengers}, "
+                          f"Avg Wait: {avg_wait:.1f}s, "
+                          f"Epsilon: {epsilon:.3f}")
             
             # Training
             if len(self.replay_buffer) > self.batch_size:
@@ -387,14 +464,15 @@ class ElevatorTDQN:
             if self.training_step > 0 and self.training_step % self.sync_after2 == 0:
                 self.dqn_target2.load_state_dict(self.dqn_net.state_dict())
             
-            # Save model
-            if timestep % 1000 == 0:
+            # Save model periodically
+            if timestep % 5000 == 0:
                 checkpoint = {
                     'online': self.dqn_net.state_dict(),
                     'target1': self.dqn_target1.state_dict(),
                     'target2': self.dqn_target2.state_dict()
                 }
                 torch.save(checkpoint, save_path)
+                print(f"Saved TDQN model at step {timestep}")
         
         # Final save
         checkpoint = {
@@ -408,17 +486,24 @@ class ElevatorTDQN:
         return all_rewards
     
     def predict(self, state, epsilon=0.0):
-        """Predict the best action based on state"""
+        """Predict action based on state"""
         if random.random() < epsilon:
-            return random.randint(0, self.act_dim - 1)
+            if hasattr(self.env.action_space, 'n'):
+                return random.randint(0, self.act_dim - 1)
+            else:
+                return self.env.action_space.sample()
         else:
             with torch.no_grad():
                 state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
                 q_values = self.dqn_net(state_tensor)
-                return q_values.argmax().item()
+                
+                if hasattr(self.env.action_space, 'n'):
+                    return q_values.argmax().item()
+                else:
+                    return q_values.cpu().numpy().flatten()
     
     def compute_tdqn_loss(self):
-        """Compute the Triple DQN loss using three networks"""
+        """Compute Triple DQN loss"""
         obs, actions, rewards, next_obs, dones = self.replay_buffer.get(self.batch_size)
         
         # Convert to tensors
@@ -431,9 +516,8 @@ class ElevatorTDQN:
         # Current Q values
         current_q_values = self.dqn_net(obs).gather(1, actions.unsqueeze(1)).squeeze(1)
         
-        # Triple DQN: Use online network for action selection, two target networks for evaluation
+        # Triple DQN
         with torch.no_grad():
-            # Action selection by online network
             next_actions = self.dqn_net(next_obs).argmax(1)
             
             # Q-value evaluation by two separate target networks
@@ -453,8 +537,8 @@ class ElevatorTDQN:
         loss = torch.nn.MSELoss()(current_q_values, target_q_values)
         return loss
     
-    def epsilon_by_timestep(self, timestep, epsilon_start=1.0, epsilon_final=0.01, frames_decay=20000):
-        """Epsilon decay for elevator problem"""
+    def epsilon_by_timestep(self, timestep, epsilon_start=1.0, epsilon_final=0.01, frames_decay=50000):
+        """Epsilon decay"""
         if timestep >= frames_decay:
             return epsilon_final
         else:

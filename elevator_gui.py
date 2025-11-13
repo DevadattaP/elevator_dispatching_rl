@@ -3,7 +3,9 @@ from tkinter import ttk
 import threading
 import time
 import os
-
+from elevator_env import ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, DiscreteCombinatorialWrapper, DiscreteAssignmentWrapper, MultiDiscreteWrapper
+from elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN
+from elevator_rl_env import ElevatorRLEnv
 import numpy as np
 import torch
 from building import Building
@@ -136,7 +138,6 @@ class ElevatorGUI:
         if model_name == "rule_based":
             self.model = None
             # Create environment for rule-based system
-            from elevator_env import ElevatorEnv
             self.env = ElevatorEnv(
                 num_floors=self.num_floors,
                 num_elevators=self.num_elevators,
@@ -150,9 +151,18 @@ class ElevatorGUI:
             self.building = self.env.building
             return
         elif model_name in ['dqn', 'ddqn', 'tdqn']:
-            from elevator_rl_env import ElevatorRLEnv
-            from elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN, DQNNetwork
             dummy_env = ElevatorRLEnv(self.num_floors, self.num_elevators, self.capacity)
+            # dummy_env = ElevatorEnv(
+            #     num_floors=self.num_floors,
+            #     num_elevators=self.num_elevators,
+            #     lift_capacity=self.capacity,
+            #     observation_type='enhanced',  # Use your enhanced observation
+            #     action_type='assignment',     # Or 'combinatorial' based on your preference
+            #     reward_type='fairness',       # Use fairness reward like Crites & Barto
+            #     use_smdp=True,               # Use SMDP for better performance
+            #     traffic_pattern='all_in_one', # Mixed traffic patterns
+            #     verbose=0
+            # )
         
             if model_name == 'dqn':
                 rl_agent = ElevatorDQN(env=dummy_env,resume=True)
@@ -216,7 +226,6 @@ class ElevatorGUI:
         if model_name not in model_configs:
             print(f"No configuration found for {model_name}")
             # Fallback to default environment
-            from elevator_env import ElevatorEnv
             self.env = ElevatorEnv(
                 num_floors=self.num_floors,
                 num_elevators=self.num_elevators,
@@ -235,7 +244,6 @@ class ElevatorGUI:
         if not os.path.exists(model_path):
             print(f"Model file not found: {model_path}")
             # Fallback to default environment
-            from elevator_env import ElevatorEnv
             self.env = ElevatorEnv(
                 num_floors=self.num_floors,
                 num_elevators=self.num_elevators, 
@@ -248,11 +256,7 @@ class ElevatorGUI:
             return
         
         print(f"Loading {model_name} from: {model_path}")
-        
-        # Import required modules
-        from elevator_env import ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, DiscreteCombinatorialWrapper, DiscreteAssignmentWrapper, MultiDiscreteWrapper
-        from stable_baselines3 import PPO, A2C, DQN, SAC, TD3, DDPG
-        
+                
         # Choose environment wrapper
         wrapper_classes = {
             "default": ElevatorEnv,
@@ -365,7 +369,6 @@ class ElevatorGUI:
                 self.model = None
                 
                 # Still set up environment for rule-based fallback
-                from elevator_env import ElevatorEnv
                 self.env = ElevatorEnv(
                     num_floors=self.num_floors,
                     num_elevators=self.num_elevators,

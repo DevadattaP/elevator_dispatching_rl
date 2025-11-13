@@ -1,148 +1,148 @@
 # train_elevator_rl.py
-import numpy as np
-from elevator_rl_env import ElevatorRLEnv
+from elevator_env import ElevatorEnv
 from elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN
 import matplotlib.pyplot as plt
+import numpy as np
 
-def train_elevator_dqn():
-    # Create environment
-    env = ElevatorRLEnv(num_floors=10, num_elevators=4, capacity=8, max_steps=3600, speed_multiplier=10)
+def create_environment():
+    """Create your advanced elevator environment"""
+    return ElevatorEnv(
+        num_floors=10,
+        num_elevators=4,
+        lift_capacity=8,
+        speed_multiplier=10.0,
+        episode_length=3600,  # 1 hour simulation
+        headless=True,
+        passenger_generation_rate=1.0,
+        observation_type='enhanced',  # Use your enhanced observation
+        action_type='assignment',     # Or 'combinatorial' based on your preference
+        reward_type='fairness',       # Use fairness reward like Crites & Barto
+        use_smdp=True,               # Use SMDP for better performance
+        traffic_pattern='all_in_one', # Mixed traffic patterns
+        verbose=0
+    )
+
+def train_all_algorithms_advanced():
+    """Train all algorithms with your advanced environment"""
     
     # Train DQN
-    print("=== Training DQN ===")
+    print("=== Training Advanced DQN ===")
+    env_dqn = create_environment()
     dqn_agent = ElevatorDQN(
-        env, 
-        replay_size=10000, 
-        batch_size=32,
+        env_dqn, 
+        replay_size=50000, 
+        batch_size=64,
         gamma=0.95,
-        sync_after=100,
-        lr=0.0005
+        sync_after=1000,
+        lr=0.0001
     )
-    dqn_rewards = dqn_agent.learn(timesteps=100000, save_path='./models/elevator_dqn.pth')
+    dqn_rewards = dqn_agent.learn(timesteps=50000, save_path='elevator_dqn_advanced.pth')
     
-    print("\n=== Training Double DQN ===")
-    env_ddqn = ElevatorRLEnv(num_floors=10, num_elevators=4, capacity=8, max_steps=3600, speed_multiplier=10)
+    # Train DDQN
+    print("\n=== Training Advanced Double DQN ===")
+    env_ddqn = create_environment()
     ddqn_agent = ElevatorDDQN(
         env_ddqn,
-        replay_size=10000,
-        batch_size=32,
+        replay_size=50000,
+        batch_size=64,
         gamma=0.95,
-        sync_after=100,
-        lr=0.0005
+        sync_after=1000,
+        lr=0.0001
     )
-    ddqn_rewards = ddqn_agent.learn(timesteps=100000, save_path='./models/elevator_ddqn.pth')
+    ddqn_rewards = ddqn_agent.learn(timesteps=50000, save_path='elevator_ddqn_advanced.pth')
     
     # Train TDQN
-    print("\n=== Training Triple DQN ===")
-    env_tdqn = ElevatorRLEnv(num_floors=10, num_elevators=4, capacity=8, max_steps=3600, speed_multiplier=10)
+    print("\n=== Training Advanced Triple DQN ===")
+    env_tdqn = create_environment()
     tdqn_agent = ElevatorTDQN(
         env_tdqn,
-        replay_size=10000,
-        batch_size=32,
+        replay_size=50000,
+        batch_size=64,
         gamma=0.95,
-        sync_after1=100,  # More frequent sync for first target
-        sync_after2=500,  # Less frequent sync for second target
-        lr=0.0005,
-        aggregator='min'  # Use min for more conservative estimates
+        sync_after1=1000,
+        sync_after2=5000,
+        lr=0.0001,
+        aggregator='min'  # More conservative estimates
     )
-    tdqn_rewards = tdqn_agent.learn(timesteps=100000, save_path='./models/elevator_tdqn.pth')
+    tdqn_rewards = tdqn_agent.learn(timesteps=50000, save_path='elevator_tdqn_advanced.pth')
     
     # Plot comparison
-    plt.figure(figsize=(12, 8))
+    plot_training_comparison(dqn_rewards, ddqn_rewards, tdqn_rewards)
     
-    # Plot individual rewards
-    plt.subplot(2, 1, 1)
+    print("\n=== Advanced Training Completed ===")
+    print("Models saved: elevator_dqn_advanced.pth, elevator_ddqn_advanced.pth, elevator_tdqn_advanced.pth")
+
+def plot_training_comparison(dqn_rewards, ddqn_rewards, tdqn_rewards):
+    """Plot training comparison"""
+    plt.figure(figsize=(15, 10))
+    
+    # Plot 1: Raw rewards
+    plt.subplot(2, 2, 1)
     if dqn_rewards:
-        plt.plot(dqn_rewards, alpha=0.7, label='DQN')
+        plt.plot(dqn_rewards, alpha=0.7, label='DQN', color='blue')
     if ddqn_rewards:
-        plt.plot(ddqn_rewards, alpha=0.7, label='Double DQN')
+        plt.plot(ddqn_rewards, alpha=0.7, label='Double DQN', color='green')
     if tdqn_rewards:
-        plt.plot(tdqn_rewards, alpha=0.7, label='Triple DQN')
+        plt.plot(tdqn_rewards, alpha=0.7, label='Triple DQN', color='red')
     plt.xlabel('Episode')
     plt.ylabel('Total Reward')
-    plt.title('Elevator RL Algorithms - Training Progress')
+    plt.title('Training Progress - Raw Rewards')
     plt.legend()
     plt.grid(True)
     
-    # Plot moving averages
-    plt.subplot(2, 1, 2)
-    window = 50
+    # Plot 2: Moving averages
+    plt.subplot(2, 2, 2)
+    window = 20
     
     def moving_average(data, window):
         return np.convolve(data, np.ones(window)/window, mode='valid')
     
     if dqn_rewards and len(dqn_rewards) >= window:
-        plt.plot(moving_average(dqn_rewards, window), label='DQN (MA)')
+        plt.plot(moving_average(dqn_rewards, window), label='DQN (MA)', color='blue', linewidth=2)
     if ddqn_rewards and len(ddqn_rewards) >= window:
-        plt.plot(moving_average(ddqn_rewards, window), label='Double DQN (MA)')
+        plt.plot(moving_average(ddqn_rewards, window), label='Double DQN (MA)', color='green', linewidth=2)
     if tdqn_rewards and len(tdqn_rewards) >= window:
-        plt.plot(moving_average(tdqn_rewards, window), label='Triple DQN (MA)')
+        plt.plot(moving_average(tdqn_rewards, window), label='Triple DQN (MA)', color='red', linewidth=2)
     
     plt.xlabel('Episode')
     plt.ylabel('Moving Average Reward')
-    plt.title('Moving Average Comparison (Window=50)')
+    plt.title(f'Moving Average Comparison (Window={window})')
     plt.legend()
     plt.grid(True)
     
+    # Plot 3: Final performance comparison
+    plt.subplot(2, 2, 3)
+    algorithms = ['DQN', 'Double DQN', 'Triple DQN']
+    final_performance = []
+    
+    if dqn_rewards and len(dqn_rewards) >= 50:
+        final_performance.append(np.mean(dqn_rewards[-50:]))
+    else:
+        final_performance.append(0)
+        
+    if ddqn_rewards and len(ddqn_rewards) >= 50:
+        final_performance.append(np.mean(ddqn_rewards[-50:]))
+    else:
+        final_performance.append(0)
+        
+    if tdqn_rewards and len(tdqn_rewards) >= 50:
+        final_performance.append(np.mean(tdqn_rewards[-50:]))
+    else:
+        final_performance.append(0)
+    
+    colors = ['blue', 'green', 'red']
+    bars = plt.bar(algorithms, final_performance, color=colors, alpha=0.7)
+    plt.ylabel('Average Final Reward (Last 50 episodes)')
+    plt.title('Final Performance Comparison')
+    
+    # Add value labels on bars
+    for bar, value in zip(bars, final_performance):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
+                f'{value:.2f}', ha='center', va='bottom')
+    
     plt.tight_layout()
-    plt.savefig('algorithm_comparison.png', dpi=300, bbox_inches='tight')
+    plt.savefig('advanced_algorithm_comparison.png', dpi=300, bbox_inches='tight')
     plt.show()
-    
-    print("\n=== Training Completed ===")
-    print("Models saved: elevator_dqn.pth, elevator_ddqn.pth, elevator_tdqn.pth")
-    print("Comparison plot saved: algorithm_comparison.png")
-
-def evaluate_agent(model, env, num_episodes=10):  # Increased episodes for better stats
-    """Evaluate a trained RL agent with enhanced metrics."""
-    all_stats = []
-    for episode in range(num_episodes):
-        obs, info = env.reset()
-        terminated, truncated = False, False
-        episode_rewards = []
-        
-        while not terminated and not truncated:
-            action = model.predict(obs)
-            obs, reward, terminated, truncated, info = env.step(action)
-            episode_rewards.append(reward)
-            
-        # Add episode reward to info
-        info['episode_reward'] = sum(episode_rewards)
-        info['episode_length'] = len(episode_rewards)
-        all_stats.append(info)
-        
-    # Calculate comprehensive statistics
-    avg_completed = np.mean([s['passengers_completed'] for s in all_stats])
-    avg_wait = np.mean([s['average_wait_time'] for s in all_stats])
-    avg_journey = np.mean([s['average_journey_time'] for s in all_stats])
-    avg_reward = np.mean([s['episode_reward'] for s in all_stats])
-    
-    # Additional metrics from research papers
-    max_waits = [s.get('max_wait_time', 0) for s in all_stats]
-    fairness_metrics = [s.get('fairness_metric', 0) for s in all_stats]
-    
-    return {
-        "avg_passengers_completed": avg_completed,
-        "avg_wait_time": avg_wait,
-        "avg_journey_time": avg_journey,
-        "avg_episode_reward": avg_reward,
-        "max_wait_time": np.mean(max_waits),
-        "fairness_metric": np.mean(fairness_metrics),
-        "evaluation_episodes": num_episodes
-    }
 
 if __name__ == "__main__":
-    # train_elevator_dqn()
-    dummy_env = ElevatorRLEnv(10, 4, 8, 3600, 10)
-    
-    for model_name in ['dqn', 'ddqn', 'tdqn']:
-        if model_name == 'dqn':
-            rl_agent = ElevatorDQN(env=dummy_env,resume=True)
-        elif model_name == 'ddqn':
-            rl_agent = ElevatorDDQN(env=dummy_env,resume=True)
-        elif model_name == 'tdqn':
-            rl_agent = ElevatorTDQN(env=dummy_env,resume=True)
-        stats = evaluate_agent(rl_agent, dummy_env, num_episodes=10)
-        print(f"Evaluation results for {model_name.upper()}:")
-        for key, value in stats.items():
-            print(f"  {key}: {value}")
-            
+    train_all_algorithms_advanced()
