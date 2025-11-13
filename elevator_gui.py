@@ -5,6 +5,7 @@ import time
 import os
 
 import numpy as np
+import torch
 from building import Building
 from utils.enums import ElevatorState
 from graphs import GraphWindow
@@ -51,7 +52,8 @@ class ElevatorGUI:
         
         # Agent selector
         ttk.Label(control_frame, text="Agent:").pack(side="left", padx=5)
-        agent_choices = ["rule_based", "PPO", "A2C", "DQN", "SAC", "TD3", "DDPG"]
+        # agent_choices = ["rule_based", "PPO", "A2C", "DQN", "SAC", "TD3", "DDPG"]
+        agent_choices = ["rule_based", "dqn", 'ddqn', 'tdqn']
         self.agent_menu = ttk.Combobox(control_frame, textvariable=self.agent_type, values=agent_choices, width=10, state="readonly")
         self.agent_menu.pack(side="left", padx=5)
 
@@ -146,6 +148,21 @@ class ElevatorGUI:
                 verbose=0
             )
             self.building = self.env.building
+            return
+        elif model_name in ['dqn', 'ddqn', 'tdqn']:
+            from elevator_rl_env import ElevatorRLEnv
+            from elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN, DQNNetwork
+            dummy_env = ElevatorRLEnv(self.num_floors, self.num_elevators, self.capacity)
+        
+            if model_name == 'dqn':
+                rl_agent = ElevatorDQN(env=dummy_env,resume=True)
+            elif model_name == 'ddqn':
+                rl_agent = ElevatorDDQN(env=dummy_env,resume=True)
+            elif model_name == 'tdqn':
+                rl_agent = ElevatorTDQN(env=dummy_env,resume=True)
+            self.env = dummy_env
+            self.building = self.env.building
+            self.model = rl_agent
             return
         
         # Model path mapping with exact training configurations
@@ -626,7 +643,10 @@ class ElevatorGUI:
                 self.building.step()
             else:
                 # RL-based control using Gym interface
-                action, _ = self.model.predict(obs, deterministic=True)
+                if self.agent_type.get() in ['dqn', 'ddqn', 'tdqn']:
+                    action = self.model.predict(obs)
+                else:
+                    action, _ = self.model.predict(obs, deterministic=True)
                 
                 # if step_count % 100 == 0:  # Print every 100 steps for debugging
                 #     print(f"Step {step_count}: Action={action}, Agent={self.agent_type.get()}")
