@@ -42,6 +42,7 @@ class ElevatorGUI:
         self.update_display()
         
         # Auto-open graph window on startup
+        self.load_agent_model()
         self.open_graph_window()
         
     def setup_gui(self):
@@ -149,6 +150,7 @@ class ElevatorGUI:
                 verbose=0
             )
             self.building = self.env.building
+            self.graph_window.env = self.env
             return
         elif model_name in ['dqn', 'ddqn', 'tdqn']:
             dummy_env = ElevatorRLEnv(self.num_floors, self.num_elevators, self.capacity)
@@ -173,6 +175,7 @@ class ElevatorGUI:
             self.env = dummy_env
             self.building = self.env.building
             self.model = rl_agent
+            self.graph_window.env = self.env
             return
         
         # Model path mapping with exact training configurations
@@ -403,7 +406,7 @@ class ElevatorGUI:
     def open_graph_window(self):
         """Open or focus the graph window"""
         if self.graph_window is None or not self.graph_window.root.winfo_exists():
-            self.graph_window = GraphWindow(self.building, self.num_elevators)
+            self.graph_window = GraphWindow(self.building, self.num_elevators, self.env)
             # When graph window closes, clear the reference
             self.graph_window.root.protocol("WM_DELETE_WINDOW", self.on_graph_window_close)
         else:

@@ -118,7 +118,7 @@ class ElevatorModelComparator:
         """Create a grid of bar charts for multiple metrics."""
         if metrics is None:
             metrics = ['avg_wait_time', 'avg_journey_time', 'avg_passengers_completed', 
-                      'max_wait_time', 'fairness_metric', 'avg_episode_reward']
+                      'max_wait_time', 'fairness_metric',]
         
         n_metrics = len(metrics)
         n_cols = 3
@@ -398,26 +398,167 @@ def quick_comparison(results_file: str = "enhanced_evaluation_results.json"):
     comparator.plot_traffic_pattern_comparison()
 
 
+def visualize_custom_data():
+    # ----------------------------------------------------------
+    # DATA FROM USER
+    # ----------------------------------------------------------
+
+    algos = ["Rule-based", "DQN", "DDQN", "TDQN"]
+
+    # Per-elevator data (4 elevators × 4 algos)
+    passengers_per_min = [
+        [7.6, 9.2, 9.2, 10.4],       # Rule-based
+        [8.6, 6.8, 9.8, 8.6],        # DQN
+        [10.2, 8.0, 8.8, 6.2],       # DDQN
+        [10.0, 8.2, 10.4, 7.8]       # TDQN
+    ]
+
+    avg_wait = [
+        [6.86, 8.70, 8.40, 8.01],
+        [9.01, 11.23, 8.40, 9.69],
+        [10.13, 8.73, 7.98, 10.04],
+        [8.25, 7.93, 8.30, 9.71]
+    ]
+
+    avg_travel = [
+        [11.99, 14.58, 14.24, 12.41],
+        [16.25, 15.93, 14.14, 18.43],
+        [17.02, 14.50, 14.61, 14.88],
+        [14.02, 13.28, 14.39, 15.62]
+    ]
+
+    avg_idle = [
+        [4.28, 6.08, 1.65, 2.75],
+        [0.10, 0.13, 2.03, 4.40],
+        [0.38, 3.10, 3.55, 1.27],
+        [2.73, 3.10, 2.38, 0.15]
+    ]
+
+    # Environment info (for radar plot)
+    env_info = {
+        "Rule-based": [293, 8.067, 13.385, 25.33, 85.09],
+        "DQN":        [289, 9.484, 16.140, 29.83, 121.34],
+        "DDQN":       [267, 9.194, 15.339, 29.83, 113.28],
+        "TDQN":       [282, 8.556, 14.361, 32.67, 99.26]
+    }
+
+    labels = ["Passengers Completed", "Avg Wait", "Avg Journey", "Max Wait", "Fairness"]
+
+    # ----------------------------------------------------------
+    # 2×2 SUBPLOTS — GROUPED BAR CHARTS
+    # ----------------------------------------------------------
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    metrics = [
+        ("Passengers/min", passengers_per_min),
+        ("Avg Wait (s)", avg_wait),
+        ("Avg Travel (s)", avg_travel),
+        ("Avg Idle (min)", avg_idle),
+    ]
+
+    for ax, (title, data) in zip(axes.flat, metrics):
+        x = np.arange(len(algos))
+        width = 0.2
+
+        for i in range(4):   # 4 elevators
+            values = [data[a][i] for a in range(len(algos))]
+            ax.bar(x + i*width, values, width, label=f"Elevator {i}")
+
+        ax.set_title(title)
+        ax.set_xticks(x + width*1.5)
+        ax.set_xticklabels(algos)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    # ----------------------------------------------------------
+    # RADAR PLOT FOR ENVIRONMENT INFO
+    # ----------------------------------------------------------
+
+    # Compute min/max per feature for independent scaling
+    data_matrix = np.array(list(env_info.values()))
+    min_vals = data_matrix.min(axis=0)
+    max_vals = data_matrix.max(axis=0)
+
+    # Normalize each feature independently (0–1)
+    def normalize(values):
+        return [(v - min_vals[i]) / (max_vals[i] - min_vals[i]) for i, v in enumerate(values)]
+
+    # Radar plot
+    def radar_chart_multi_scale(data_dict, labels):
+        num_vars = len(labels)
+        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+        angles += angles[:1]
+
+        fig = plt.figure(figsize=(9, 9))
+        ax = plt.subplot(111, polar=True)
+
+        # Draw grid with standard 0–1 radius
+        ax.set_ylim(0, 1)
+
+        # Plot each algorithm normalized
+        for algo, values in data_dict.items():
+            norm_vals = normalize(values)
+            norm_vals += norm_vals[:1]
+            ax.plot(angles, norm_vals, linewidth=2, label=algo)
+            ax.fill(angles, norm_vals, alpha=0.1)
+
+        # Custom label placement
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(labels, fontsize=12)
+
+        # Custom radial tick labels per axis
+        for i, angle in enumerate(angles[:-1]):
+            # Determine label position
+            x = np.cos(angle)
+            y = np.sin(angle)
+
+            # Real-world scale ticks (e.g., 3 ticks)
+            ticks = np.linspace(min_vals[i], max_vals[i], 4)
+
+            # Place labels slightly outside chart
+            for t in ticks:
+                norm = (t - min_vals[i]) / (max_vals[i] - min_vals[i])
+                ax.text(
+                    angle,
+                    norm + 0.05,
+                    f"{t:.1f}",
+                    ha="center",
+                    va="center",
+                    fontsize=9,
+                    alpha=0.7
+                )
+
+        ax.set_title("Environment Metrics Radar Chart (Independent Scales)", size=16, pad=20)
+        ax.legend(loc="upper right", bbox_to_anchor=(1.25, 1.1))
+
+        plt.show()
+
+    radar_chart_multi_scale(env_info, labels)
+
+
 # ===== Main Execution =====
 if __name__ == "__main__":
-    import argparse
+    # import argparse
     
-    parser = argparse.ArgumentParser(description='Compare elevator model evaluation results')
-    parser.add_argument('--results-file', default='evaluation_results.json',
-                       help='Path to results JSON file')
-    parser.add_argument('--quick', action='store_true',
-                       help='Run quick comparison only')
-    parser.add_argument('--full', action='store_true', default=True,
-                       help='Run full comprehensive analysis')
+    # parser = argparse.ArgumentParser(description='Compare elevator model evaluation results')
+    # parser.add_argument('--results-file', default='evaluation_results.json',
+    #                    help='Path to results JSON file')
+    # parser.add_argument('--quick', action='store_true',
+    #                    help='Run quick comparison only')
+    # parser.add_argument('--full', action='store_true', default=True,
+    #                    help='Run full comprehensive analysis')
     
-    args = parser.parse_args()
+    # args = parser.parse_args()
     
-    if args.quick:
-        quick_comparison(args.results_file)
-    elif args.full:
-        comparator = ElevatorModelComparator(args.results_file)
-        comparator.run_full_comparison()
-    else:
-        # Default: run full analysis
-        comparator = ElevatorModelComparator(args.results_file)
-        comparator.run_full_comparison()
+    # if args.quick:
+    #     quick_comparison(args.results_file)
+    # elif args.full:
+    #     comparator = ElevatorModelComparator(args.results_file)
+    #     comparator.run_full_comparison()
+    # else:
+    #     # Default: run full analysis
+    #     comparator = ElevatorModelComparator(args.results_file)
+    #     comparator.run_full_comparison()
+    visualize_custom_data()

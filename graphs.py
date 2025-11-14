@@ -3,15 +3,17 @@ from tkinter import ttk
 import threading
 import time
 from building import Building
+from elevator_env import ElevatorEnv
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from collections import deque
 
 
 class GraphWindow:
-    def __init__(self, building: Building, num_elevators):
+    def __init__(self, building: Building, num_elevators, env: ElevatorEnv):
         self.building = building
         self.num_elevators = num_elevators
+        self.env = env
         self.is_running = False
         self.update_thread = None
         
@@ -162,6 +164,12 @@ class GraphWindow:
             self.avg_waiting_time[elevator_id].append(avg_waiting)
             self.avg_travel_time[elevator_id].append(avg_travel)
             self.idle_percentage[elevator_id].append(avg_idle_time_5min)  # Now stores idle time in minutes
+            
+            if 500 <= current_time <= 505:
+                print(f"Current time: {current_time} => Elevator {elevator_id}: Served {passengers_per_minute_5min} passengers/min, "
+                        f"Avg Wait: {avg_waiting}s, Avg Travel: {avg_travel}s, "
+                        f"Avg Idle: {avg_idle_time_5min} min")
+                print(f'Current time: {current_time} => Env info: {self.env._get_info()}')
         
         # Update each plot
         for i in range(self.num_elevators):
