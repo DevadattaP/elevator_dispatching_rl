@@ -2,7 +2,7 @@
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from building import Building
+from entities.building import Building
 
 class ElevatorRLEnv(gym.Env):
     def __init__(self, num_floors=10, num_elevators=4, capacity=8, max_steps=3600, speed_multiplier=10.0):

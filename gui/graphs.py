@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import time
-from building import Building
-from elevator_env import ElevatorEnv
+from entities.building import Building
+from agent.elevator_env import ElevatorEnv
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from collections import deque

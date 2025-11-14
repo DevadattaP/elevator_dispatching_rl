@@ -2,7 +2,7 @@ import time
 import traceback
 import numpy as np
 from stable_baselines3 import PPO, A2C, DQN, SAC, TD3, DDPG
-from elevator_env import (ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, 
+from agent.elevator_env import (ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, 
                           DiscreteAssignmentWrapper, DiscreteCombinatorialWrapper, MultiDiscreteWrapper, FlattenMultiDiscreteWrapper)
 import os
 import json

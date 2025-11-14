@@ -2,7 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 from typing import Dict, List, Optional, Tuple
-from building import Building
+from entities.building import Building
 from utils.enums import ElevatorState
 np.random.seed(42)
 

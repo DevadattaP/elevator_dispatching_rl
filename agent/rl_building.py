@@ -1,5 +1,5 @@
 # rl_building.py
-from building import Building
+from entities.building import Building
 import numpy as np
 import torch
 from elevator_rl_env import ElevatorRLEnv

@@ -1,7 +1,7 @@
 import numpy as np
 from collections import defaultdict
 import random
-from building import Building
+from entities.building import Building
 from utils.enums import ElevatorState
 import pickle
 import json

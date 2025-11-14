@@ -3,14 +3,14 @@ from tkinter import ttk
 import threading
 import time
 import os
-from elevator_env import ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, DiscreteCombinatorialWrapper, DiscreteAssignmentWrapper, MultiDiscreteWrapper
-from elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN
-from elevator_rl_env import ElevatorRLEnv
+from agent.elevator_env import ElevatorEnv, D3QNWrapper, SMDPWrapper, TrafficAwareWrapper, DiscreteCombinatorialWrapper, DiscreteAssignmentWrapper, MultiDiscreteWrapper
+from agent.elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN
+from agent.elevator_rl_env import ElevatorRLEnv
 import numpy as np
 import torch
-from building import Building
+from entities.building import Building
 from utils.enums import ElevatorState
-from graphs import GraphWindow
+from gui.graphs import GraphWindow
 from stable_baselines3 import PPO, A2C, DQN, SAC, TD3, DDPG
 
 
@@ -42,8 +42,9 @@ class ElevatorGUI:
         self.update_display()
         
         # Auto-open graph window on startup
-        self.load_agent_model()
         self.open_graph_window()
+        self.on_graph_window_close()
+        self.load_agent_model()
         
     def setup_gui(self):
         self.root.title("Elevator Simulation - Individual Elevator Call Buttons")
@@ -135,6 +136,7 @@ class ElevatorGUI:
 
     def load_agent_model(self):
         """Load pre-trained RL models with exact training configurations."""
+        self.on_graph_window_close()
         model_name = self.agent_type.get()
         if model_name == "rule_based":
             self.model = None
@@ -150,7 +152,6 @@ class ElevatorGUI:
                 verbose=0
             )
             self.building = self.env.building
-            self.graph_window.env = self.env
             return
         elif model_name in ['dqn', 'ddqn', 'tdqn']:
             dummy_env = ElevatorRLEnv(self.num_floors, self.num_elevators, self.capacity)
@@ -175,7 +176,6 @@ class ElevatorGUI:
             self.env = dummy_env
             self.building = self.env.building
             self.model = rl_agent
-            self.graph_window.env = self.env
             return
         
         # Model path mapping with exact training configurations
