@@ -2,9 +2,41 @@
 
 ## Abstract
 
-This project explores the use of Reinforcement Learning (RL) to address the elevator dispatching problem—determining how multiple elevators should move to efficiently serve passengers within a dynamic, multi-floor building. Traditional rule-based systems often fail to adapt to varying traffic patterns or optimize for multiple objectives at once. The goal here is to develop an adaptive, learning-based dispatch system that can intelligently balance efficiency, comfort, and energy use. The project involves building a detailed simulation environment that models realistic elevator physics, door operations, and passenger motion in various traffics like peak and non-peak hours.
-The RL agent will be trained and evaluated across various configurations of building size, number of elevators, and time-based demand patterns. Some important experiments to be conducted include comparing discrete and continuous action spaces, designing and testing alternative observation space structures and reward functions, and benchmarking multiple RL algorithms such as PPO and others to identify the most effective control strategy.
-System performance will be evaluated using metrics such as average waiting time of passengers, travel time distribution, elevator utilization, and estimated energy consumption. A visual interface will provide real-time insights into the agent’s decisions and overall building performance. Through these explorations, the project hopes to advance the state-of- knowledge on the use of how reinforcement learning can be applied to the challenging problems of scheduling and control problems, to create more intelligent, data-driven control systems.
+This project explores the application of Reinforcement Learning (RL) to optimize elevator dispatching in multi-floor, multi-elevator buildings. Traditional rule-based elevator control systems often struggle to adapt to dynamic traffic patterns and optimize multiple objectives simultaneously. I developed a comprehensive simulation environment modeling realistic elevator physics, and various traffic patterns. I implemented multiple RL algorithms including PPO, A2C, DQN, SAC, TD3, DDPG, and their variants and evaluated them against traditional rule-based systems. The system incorporates enhanced state representations, diverse reward functions, and specialized action spaces inspired by recent research. Performance was assessed using metrics such as average waiting time, passenger throughput, elevator utilization, and fairness. While RL agents achieved comparable performance to rule-based systems, challenges in energy efficiency were identified, suggesting the need for hybrid approaches combining learning with domain constraints.
+
+## Objectives
+
+- Create a detailed elevator simulation with realistic physics, door operations, and passenger behavior patterns.
+- Train and compare various RL agents including value-based, policy-based, and actor-critic methods.
+- Develop enhanced observation spaces incorporating elevator states, passenger information, and traffic patterns.
+- Design and test multiple reward structures balancing efficiency, fairness, and energy considerations.
+- Establish comprehensive evaluation metrics including passenger waiting times, throughput, and system efficiency.
+- Benchmark RL performance against conventional rule-based elevator control systems.
+
+## Motivation
+
+Reinforcement learning (RL) offers a principled framework for learning control policies through interaction with the environment, making it a strong candidate for problems involving uncertainty, sequential decisions, and long-term rewards. Historically, RL has been successfully applied to several influential benchmark problems, including Samuel’s checkers player, TD-Gammon, the Acrobot, dynamic channel allocation, and job-shop scheduling---with \emph{elevator dispatching} explicitly recognized as one of the canonical industrial case studies.
+
+Elevator control is described as:
+> ''A good example of a stochastic optimal control problem of economic importance that is too large to solve by classical techniques such as dynamic programming. Waiting for an elevator is a situation familiar to all of us. How long we wait depends on the dispatching strategy: if passengers on several floors request pickups, which should be served first, and how should elevators position themselves when idle?''[[5]](http://incompleteideas.net/book/ebook/node111.html)
+
+Elevator dispatching represents a complex sequential decision-making problem under uncertainty. Traditional control systems rely heavily on handcrafted heuristic rules that, while efficient in predictable conditions, lack the adaptability required to handle varying traffic patterns, changing passenger behavior, and multi-objective optimization needs. The elevator group control problem (EGCP) is characterized by:
+
+- **High-dimensional state space:** Multiple elevators, diverse floor configurations, and stochastic passenger arrivals
+- **Dynamic environment:** Strong temporal variation in traffic intensity (up-peak, down-peak, lunchtime, mixed)
+- **Multiple competing objectives:** Minimizing waiting time, journey time, and energy consumption while maintaining fairness
+- **Real-time decision making:** Policies must react within milliseconds to new hall calls and car events
+
+Despite its presence in RL literature for decades, large-scale deployment of RL-based elevator control has been limited. Existing work often focuses on simplified environments, restricted action spaces, or handcrafted reward functions, leaving several open questions:
+
+- Why are modern RL methods (PPO, SAC, TD3, DQN variants) not yet widely adopted in real elevator systems?
+- Do contemporary algorithms actually outperform well-tuned rule-based dispatchers under realistic conditions?
+- What practical limitations---energy usage, fairness, stability, training complexity---prevent real-world deployment?
+
+These gaps formed the motivation for this work. After reviewing the literature, I became particularly interested in understanding whether modern RL algorithms could meaningfully improve elevator dispatching and what challenges would arise in practice. Moreover, despite the long-standing interest in elevator control as an RL benchmark, I found no publicly available, complete, or actively maintained implementations of modern RL approaches for this problem. This lack of accessible code further motivated the development of a fully reproducible simulation and training framework, systematic evaluation of multiple RL families, and analysis of their strengths, limitations, and deployment feasibility as part of this work.
+
+> [!NOTE]
+> Visit [report](./report/report.pdf) for detailed discussion regarding the work donw, results, conclusion and future scope.
 
 ## References
 
@@ -31,4 +63,5 @@ We welcome contributions through:
 
 See our [Contribution Guidelines](CONTRIBUTING.md) for details.
 
-> **Note**: This roadmap reflects our current development priorities. Specific features may change based on community feedback and research advancements.
+> [!Note]
+> The future scope mentioned reflects our current development priorities. Specific features may change based on community feedback and research advancements.
