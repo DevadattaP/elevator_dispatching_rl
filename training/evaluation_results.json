@@ -1,0 +1,160 @@
+{
+    "rule_based": {
+        "default": {
+            "simple": {
+                "simple": {
+                    "discrete": {
+                        "up_peak": {
+                            "avg_passengers_completed": 359.2,
+                            "avg_wait_time": 12.165220050887006,
+                            "avg_journey_time": 14.313161794352819,
+                            "avg_episode_reward": -99.08200000003265,
+                            "max_wait_time": 35.55166666682455,
+                            "fairness_metric": 170.70867273151921,
+                            "evaluation_episodes": 10
+                        },
+                        "down_peak": {
+                            "avg_passengers_completed": 367.8,
+                            "avg_wait_time": 11.222147877409443,
+                            "avg_journey_time": 17.387587429165627,
+                            "avg_episode_reward": -989.904999999056,
+                            "max_wait_time": 30.393333333514374,
+                            "fairness_metric": 135.38317380117547,
+                            "evaluation_episodes": 10
+                        },
+                        "mixed": {
+                            "avg_passengers_completed": 354.0,
+                            "avg_wait_time": 11.20781026371225,
+                            "avg_journey_time": 17.415854720119498,
+                            "avg_episode_reward": -962.0419999991076,
+                            "max_wait_time": 35.82166666683145,
+                            "fairness_metric": 141.15825746216387,
+                            "evaluation_episodes": 10
+                        },
+                        "all_in_one": {
+                            "avg_passengers_completed": 360.8,
+                            "avg_wait_time": 11.301348304391421,
+                            "avg_journey_time": 17.648141024787726,
+                            "avg_episode_reward": -1015.5239999990459,
+                            "max_wait_time": 36.84333333342623,
+                            "fairness_metric": 144.96472674056744,
+                            "evaluation_episodes": 10
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "DQN": {
+        "d3qn": {
+            "enhanced": {
+                "squared": {
+                    "combinatorial": {
+                        "all_in_one": {
+                            "avg_passengers_completed": 369.8,
+                            "avg_wait_time": 11.009858642560923,
+                            "avg_journey_time": 15.80170238576506,
+                            "avg_episode_reward": 361.1567841985864,
+                            "max_wait_time": 34.76333333355142,
+                            "fairness_metric": 134.33621947408267,
+                            "evaluation_episodes": 10
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "PPO": {
+        "traffic_aware": {
+            "enhanced": {
+                "fairness": {
+                    "discrete": {
+                        "all_in_one": {
+                            "avg_passengers_completed": 369.8,
+                            "avg_wait_time": 11.414508059666716,
+                            "avg_journey_time": 18.464134496869,
+                            "avg_episode_reward": 546.0084311338285,
+                            "max_wait_time": 38.915000000179774,
+                            "fairness_metric": 150.21611888903044,
+                            "evaluation_episodes": 10
+                        }
+                    }
+                }
+            }
+        },
+        "smdp": {
+            "enhanced": {
+                "complex": {
+                    "discrete": {
+                        "mixed": {
+                            "smdp": {
+                                "avg_passengers_completed": 369.8,
+                                "avg_wait_time": 11.320451046228984,
+                                "avg_journey_time": 18.515839320675543,
+                                "avg_episode_reward": 355.0338979314217,
+                                "max_wait_time": 34.29500000021299,
+                                "fairness_metric": 146.21868719067666,
+                                "evaluation_episodes": 10
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "default": {
+            "enhanced": {
+                "complex": {
+                    "discrete": {
+                        "mixed": {
+                            "avg_passengers_completed": 369.5,
+                            "avg_wait_time": 11.450345950588828,
+                            "avg_journey_time": 18.513953800220555,
+                            "avg_episode_reward": -4910.722086120549,
+                            "max_wait_time": 40.32500000023774,
+                            "fairness_metric": 151.63018268127985,
+                            "evaluation_episodes": 10
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "A2C": {
+        "default": {
+            "detailed": {
+                "fairness": {
+                    "discrete": {
+                        "mixed": {
+                            "avg_passengers_completed": 369.5,
+                            "avg_wait_time": 11.435687648980124,
+                            "avg_journey_time": 18.713182353918675,
+                            "avg_episode_reward": 516.7030901293716,
+                            "max_wait_time": 41.060000000281846,
+                            "fairness_metric": 151.56204040994106,
+                            "evaluation_episodes": 10
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "SAC": {
+        "default": {
+            "enhanced": {
+                "complex": {
+                    "continuous": {
+                        "mixed": {
+                            "avg_passengers_completed": 370.3,
+                            "avg_wait_time": 11.142396384637069,
+                            "avg_journey_time": 16.658521986696645,
+                            "avg_episode_reward": -3304.8203083375083,
+                            "max_wait_time": 35.68000000028312,
+                            "fairness_metric": 139.678860439171,
+                            "evaluation_episodes": 10
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
