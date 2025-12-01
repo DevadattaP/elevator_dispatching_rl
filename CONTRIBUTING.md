@@ -8,7 +8,6 @@ Thank you for considering contributing to the Elevator Dispatch RL Project! We w
 
 - Python 3.7+
 - Git
-- Poetry (for dependency management)
 
 ### Setup
 
@@ -22,9 +21,15 @@ Thank you for considering contributing to the Elevator Dispatch RL Project! We w
 
 3. Install dependencies:
 
+   You can install the exact versions used in this project by running:
+
    ```bash
-   pip install gymnasium stable-baselines3 numpy matplotlib tkinter
+   pip install -r requirements.txt
    ```
+
+   Alternatively, feel free to install any compatible version of the libraries if you prefer to work with a different setup.
+
+   Note: I am using the GPU version of PyTorch. If you're on CPU-only or want a different CUDA version, please install the appropriate build from the official PyTorch instructions: <https://pytorch.org/get-started/locally/>
 
 ### Contribution Workflow
 

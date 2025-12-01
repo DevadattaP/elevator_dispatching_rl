@@ -1,4 +1,3 @@
-# train_elevator_rl.py
 from agent.elevator_env import ElevatorEnv
 from agent.elevator_dqn import ElevatorDQN, ElevatorDDQN, ElevatorTDQN
 import matplotlib.pyplot as plt

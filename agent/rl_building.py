@@ -1,9 +1,8 @@
-# rl_building.py
 from entities.building import Building
 import numpy as np
 import torch
-from elevator_rl_env import ElevatorRLEnv
-from elevator_dqn import DQNNetwork
+from agent.elevator_rl_env import ElevatorRLEnv
+from agent.elevator_dqn import DQNNetwork
 
 class RLBuilding(Building):
     def __init__(self, num_floors: int = 10, num_elevators: int = 4, 
